@@ -1,0 +1,97 @@
+openapi: 3.1.0
+info:
+  title: SandPiper-SaaS FaaS API
+  version: 1.5.1
+  description: Compile TL-Verilog from 'top.tlv' to 'top.sv' using the Makerchip FaaS JSON endpoint.
+  termsOfService: https://makerchip.com/terms
+  x-privacyPolicy: https://makerchip.com/privacy
+
+servers:
+  - url: https://faas.makerchip.com
+
+paths:
+  /function/sandpiper-faas:
+    post:
+      operationId: compileTop
+      summary: Compiles TL-Verilog to Verilog/SystemVerilog.
+      description: Send TL-Verilog in the files object, keyed by file name, such as top.tlv. Provide other required args. JSON response includes metadata and file outputs.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompileRequest'
+            examples:
+              makerchip_template:
+                value:
+                  args: "-i top.tlv -o top.sv --iArgs"
+                  IAgreeToSLA: true
+                  responseType: json
+                  files:
+                    top.tlv: |
+                      \m5_TLV_version 1d: tl-x.org
+                      \SV
+                         m5_makerchip_module
+                      \TLV
+                         $reset = *reset;
+                         *passed = *cyc_cnt > 40;
+                      \SV
+                         endmodule
+
+      responses:
+        '200':
+          description: JSON result with metadata and any number of output files.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompileResponse'
+
+components:
+  schemas:
+    CompileRequest:
+      type: object
+      properties:
+        args:
+          type: string
+          description: CLI args; default compiles top.tlv to top.sv. You may append extra SandPiper flags.
+          default: "-i top.tlv -o top.sv --iArgs"
+        IAgreeToSLA:
+          type: boolean
+          description: True to explicitly agree to the SLA; false to include the SLA in the response.
+          default: true
+        responseType:
+          type: string
+          description: Must be json.
+          enum: [json]
+          default: json
+        files:
+          type: object
+          description: Map of input file path to file content (UTF-8 text).
+          additionalProperties:
+            type: string
+          minProperties: 1
+      required: [args, IAgreeToSLA, responseType, files]
+
+    CompileResponse:
+      type: object
+      description: Metadata plus file outputs keyed by path. File keys may contain slashes.
+      properties:
+        status:
+          type: string
+          description: Zero indicates success; nonzero indicates failure.
+        compile_id:
+          type: string
+          description: Can be ignored.
+        stdout:
+          type: string
+          description: SandPiper's STDOUT.
+        stderr:
+          type: string
+          description: SandPiper's STDERR (expected to be empty, always).
+        sla:
+          type: string
+          description: The service-level agreement, or statement of agreement.
+      additionalProperties:
+        type: string
+        description: Output files keyed by path such as top.sv, out/out.sv, out/out_gen.sv, out/m4out.
+      required: [status, stdout]
