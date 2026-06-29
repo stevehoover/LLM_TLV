@@ -80,8 +80,9 @@ unsuccessful/
 EOF
 
 # Record the prepared baseline as the first history snapshot, so the conversion's
-# starting point is captured even though no source code has changed yet.
-( cd "$DIR" && "$script_dir/record_history.sh" > /dev/null )
+# starting point is captured even though no source code has changed yet. This is a
+# fresh directory, so the baseline is always history/001.
+( cd "$DIR" && "$script_dir/record_history.sh" history/001 > /dev/null )
 
 echo "Created the following files in $DIR:"
 ls "$DIR"

@@ -98,9 +98,11 @@ with open(f"{script_dir}/../instructions/conversion_tasks.md", "r") as f:
                                 # OK to move on to the next task.
                                 # Record a history snapshot for the task we are completing if the
                                 # flow did not already record one for it (a no-op task that ran no
-                                # FEV). This keeps the console's task flow complete; record_history.sh
-                                # selects the next history directory.
+                                # FEV). This keeps the console's task flow complete. We already have
+                                # the directory listing here, so pass the next directory to
+                                # record_history.sh rather than have it rescan.
                                 latest_recorded = None
+                                nums = []
                                 if os.path.isdir("history"):
                                     nums = sorted(d for d in os.listdir("history") if d.isdigit())
                                     if nums:
@@ -110,7 +112,9 @@ with open(f"{script_dir}/../instructions/conversion_tasks.md", "r") as f:
                                         except (OSError, ValueError):
                                             latest_recorded = None
                                 if current_task and latest_recorded != current_task:
-                                    subprocess.run([os.path.join(script_dir, "record_history.sh")], check=False)
+                                    next_num = int(nums[-1]) + 1 if nums else 1
+                                    next_dir = os.path.join("history", f"{next_num:03d}")
+                                    subprocess.run([os.path.join(script_dir, "record_history.sh"), next_dir], check=False)
                                 task_title = title
                                 # Reset status.json to reflect the new next task.
                                 new_status = {}
