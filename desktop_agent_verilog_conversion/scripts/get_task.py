@@ -158,4 +158,19 @@ if task_printed:
 if next and in_current_task:
     print("")
     print("Congratulations! You have completed the final task!")
+    # Record a completion marker so tools that read a conversion (e.g. the
+    # conversion console) can tell a finished conversion from one still in
+    # progress. Only write it when the final task's FEV is clean, using the same
+    # standard as the advance guard above (none, or a passing "0:" result).
+    fev_status = status.get("fev.sh", "")
+    if fev_status == "none" or fev_status.startswith("0:"):
+        with open("CONVERSION_COMPLETE.md", "w") as f_complete:
+            f_complete.write(
+                "# Conversion Complete\n\n"
+                "All conversion tasks have been completed.\n\n"
+                f"- Final task: {current_task}\n"
+                f"- FEV status at completion: {fev_status}\n\n"
+                "This file is written by get_task.py when the final task is reached, so that\n"
+                "downstream tools can distinguish a finished conversion from one in progress.\n"
+            )
     sys.exit(0)
