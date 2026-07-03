@@ -3,6 +3,7 @@
 import sys
 import os
 import json
+import subprocess
 
 script_dir = __file__.rsplit("/", 1)[0]
 
@@ -95,6 +96,21 @@ with open(f"{script_dir}/../instructions/conversion_tasks.md", "r") as f:
                             diff_status = os.system("diff -q wip.tlv feved.tlv > /dev/null 2>&1")
                             if force_next or ((diff_status == 0) and (fev_status == "none" or fev_status.startswith("0:"))):
                                 # OK to move on to the next task.
+                                # Record a history snapshot for the task we are completing if the
+                                # flow did not already record one for it (a no-op task that ran no
+                                # FEV). This keeps the console's task flow complete; record_history.sh
+                                # selects the next history directory.
+                                latest_recorded = None
+                                if os.path.isdir("history"):
+                                    nums = sorted(d for d in os.listdir("history") if d.isdigit())
+                                    if nums:
+                                        try:
+                                            with open(os.path.join("history", nums[-1], "status.json")) as f_hist:
+                                                latest_recorded = json.load(f_hist).get("task")
+                                        except (OSError, ValueError):
+                                            latest_recorded = None
+                                if current_task and latest_recorded != current_task:
+                                    subprocess.run([os.path.join(script_dir, "record_history.sh")], check=False)
                                 task_title = title
                                 # Reset status.json to reflect the new next task.
                                 new_status = {}

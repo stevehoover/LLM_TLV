@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+import sys
+if sys.version_info < (3, 12):
+    print(f"Error: rename_sigs.py requires Python 3.12+. Current version: {sys.version}. Please upgrade.")
+    sys.exit(1)
 
 # Extract the match list from fev_full.eqy and apply the renaming to wip.tlv and copy
 # the fev_full.eqy match section to the fev.eqy match section (which must be empty).
@@ -154,7 +158,7 @@ Examples:
         status = 1
 
     if args.dry_run:
-        print(f"Dry run complete. {"No issues found." if status == 0 else "Issues must be resolved (or use -f)."}")
+        print(f"Dry run complete. {'No issues found.' if status == 0 else 'Issues must be resolved (or use -f).'}")
     else:
         if status != 0 and not args.force:
             print("Errors or warnings detected. No changes applied. (Repeat with -f to force renaming.)")

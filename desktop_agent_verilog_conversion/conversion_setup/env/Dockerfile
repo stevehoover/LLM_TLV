@@ -34,7 +34,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Remove network tools that could be used for reconnaissance (but keep essential shells)
     && rm -f /usr/bin/nc /usr/bin/netcat /bin/netstat /usr/bin/ss || true
 
-RUN apt-get update && apt-get install -y jq time
+RUN apt-get update && apt-get install -y jq time \
+    software-properties-common gpg curl \
+    && curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF23C5A6CF475977595C89F51BA6932366A755776" \
+       | gpg --dearmor -o /etc/apt/trusted.gpg.d/deadsnakes.gpg \
+    && echo "deb https://ppa.launchpadcontent.net/deadsnakes/ppa/ubuntu jammy main" \
+       > /etc/apt/sources.list.d/deadsnakes.list \
+    && apt-get update \
+    && apt-get install -y python3.12 python3.12-venv \
+    && ln -sf /usr/bin/python3.12 /usr/bin/python3 \
+    && curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12 \
+    && ln -sf /usr/local/bin/pip3 /usr/bin/pip3
 
 # Install basic Python tools
 RUN pip3 install --no-cache-dir --break-system-packages \

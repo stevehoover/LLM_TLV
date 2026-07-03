@@ -87,6 +87,45 @@ function update_status() {
   return $status
 }
 
+# Write an interim (non-terminal) `fev.sh` status without bumping `fev_cnt`.
+# Used to clear a stale failure at the start of a run, and to mark incremental
+# forward progress before the terminal (success/failure) status is known.
+function set_status() {
+  local msg="$1"
+  jq --arg msg "$msg" '.["fev.sh"] = $msg' status.json > status.tmp.json && mv status.tmp.json status.json
+}
+
+# Snapshot the current state into the history directory so each checkpoint is
+# self-contained for review. Called after status.json reflects the outcome
+# (success or failure) so the recorded status is meaningful, not a stale one.
+# Copies whatever artifacts are present and is safe to call repeatedly for the
+# same directory (success refreshes the directory recorded on incremental pass).
+function record_history() {
+  "${script_dir}/record_history.sh" "${NEXT_HISTORY_DIR}" > /dev/null
+}
+
+# Record a failure status, snapshot the history, and exit. Usage: fail <status> <msg>
+function fail() {
+  update_status "$1" "$2"
+  record_history
+  exit "$1"
+}
+
+# Snapshot the history and exit with the given status, for failures where run_tool
+# already set the status. Usage: record_and_exit <status>
+function record_and_exit() {
+  record_history
+  exit "$1"
+}
+
+# True if the previous history checkpoint recorded a passing (terminal) fev.sh
+# status. Used to avoid reusing (overwriting) a directory that holds a recorded
+# failure attempt.
+function prev_is_pass() {
+  local f="history/$(printf "%03d" "${PREV_HISTORY_NUM}")/status.json"
+  [[ -f "$f" ]] && [[ "$(jq -r '.["fev.sh"] // ""' "$f" 2>/dev/null)" == 0:* ]]
+}
+
 # Run a tool command, logging output to TEMP_DIR and returning the given exit status or failure or 0 on success.
 function run_tool() {
   local job="$1"
@@ -142,7 +181,7 @@ function run_sandpiper() {
     echo
     echo "More information on some SandPiper messages can be found in sandpiper_messages.md."
     echo
-    exit $status
+    record_and_exit $status
   fi
   if [[ ! -f ${sv_file} ]]; then
     # If SandPiper returns 0 but the output file is missing, its presumably because the file
@@ -255,12 +294,16 @@ if [[ $NEED_FULL_FEV == true ]]; then
     # Continue ongoing work in previous history directory, only running full FEV.
     NEXT_HISTORY_NUM=$PREV_HISTORY_NUM
   fi
-elif [[ $diff_status -eq 0 && $NEXT_HISTORY_NUM -gt 1 ]]; then
+elif [[ $diff_status -eq 0 && $NEXT_HISTORY_NUM -gt 1 ]] && prev_is_pass; then
   echo "wip.tlv is unchanged from previously passing (at least incremental) FEV. Reusing history/$(printf "%03d" "${PREV_HISTORY_NUM}"))."
   NEXT_HISTORY_NUM=$PREV_HISTORY_NUM
 fi
 NEXT_HISTORY_NAME=$(printf "%03d" "${NEXT_HISTORY_NUM}")
 NEXT_HISTORY_DIR=history/${NEXT_HISTORY_NAME}
+
+# Clear any stale fev.sh status from a prior attempt so a recorded checkpoint reflects
+# this run, not a previous failure. fev_cnt is preserved for loop detection.
+set_status "fev.sh running."
 
 
 # Create, scrub, and initialize a local (visible to agent) temporary directory.
@@ -330,7 +373,7 @@ if [[ $NEED_FULL_FEV == false || $MISSING_SV == true ]]; then
   # - fev.eqy.upd (with match section removed)
   ${script_dir}/map_match_pipesignals.py "${TEMP_MATCH_DIR}" fev.eqy match_lines.eqy
   if [[ $? -ne 0 ]]; then
-    update_status 3 "Failed to map TLV pipesignals to Verilog in fev.eqy. (See work in ${TEMP_MATCH_DIR})" || exit $?
+    fail 3 "Failed to map TLV pipesignals to Verilog in fev.eqy. (See work in ${TEMP_MATCH_DIR})"
   fi
 
 
@@ -349,26 +392,22 @@ if [[ $NEED_FULL_FEV == false || $MISSING_SV == true ]]; then
     fi
     echo "Incremental FEV failed"
     # TODO: Need better instructions for the agent specific to incremental FEV failure.
-    exit $incremental_status
+    record_and_exit $incremental_status
   fi
 
-  # Incremental FEV succeeded. Record history, copy wip to feved, and copy match_lines.eqy (to incorporate into fev_full*.eqy) and updated fev.eqy.
-  
-  # Record history.
-  mkdir -p ${NEXT_HISTORY_DIR}
-  rm -f history/latest
-  ln -s ${NEXT_HISTORY_NAME} history/latest
-  cp config.json ${NEXT_HISTORY_DIR}
-  cp wip.tlv ${NEXT_HISTORY_DIR}
-  rm -f ${NEXT_HISTORY_DIR}/feved.tlv
-  cp feved.tlv ${NEXT_HISTORY_DIR}
-  cp fev.eqy ${NEXT_HISTORY_DIR}
-  cp status.json ${NEXT_HISTORY_DIR}
+  # Incremental FEV succeeded. Record forward progress, copy wip to feved, and copy
+  # match_lines.eqy (to incorporate into fev_full*.eqy) and updated fev.eqy.
+
+  # Mark incremental progress before recording so the checkpoint reflects this run
+  # rather than a prior failure. The terminal status is set after full FEV below.
+  set_status "Incremental FEV passed. Running full FEV."
+  record_history
   echo "Incremental FEV succeeded. Updated feved.tlv and feved.sv."
   echo "Recorded wip.tlv in ${NEXT_HISTORY_DIR}"
   
   # Checkpoint (not in history/) wip to feved. Our policy is for feved.tlv to be read-only.
-  chmod +w feved.tlv
+  # Remove before copying to avoid a permission issue if feved.tlv's owner changes.
+  rm -f feved.tlv
   cp wip.tlv feved.tlv
   chmod -w feved.tlv
   # Copy wip.sv (which might be a symlink) to feved.sv (just for reference).
@@ -397,7 +436,7 @@ if [[ -s match_lines.eqy ]]; then
   echo "Applying match_lines.eqy to fev_full*.eqy..."
   ${script_dir}/update_full_match.py "${TEMP_MATCH_DIR}"
   if [[ $? -ne 0 ]]; then
-    update_status 4 "Failed to update fev_full*.eqy match section by applying match_lines.eqy." || exit $?
+    fail 4 "Failed to update fev_full*.eqy match section by applying match_lines.eqy."
   fi
 else
   echo "Skipping application of match_lines.eqy to fev_full*.eqy (not present or empty)."
@@ -417,10 +456,10 @@ for fev_file in fev_full.eqy fev_full_*.eqy; do
   # producing <temp-dir>/fev_full*.eqy files.
   ${script_dir}/map_match_pipesignals.py "${TEMP_MATCH_DIR}" "${fev_file}"
   if [[ $? -ne 0 ]]; then
-    update_status 4 "Failed to map TLV pipesignals to Verilog in ${fev_file}. (See work in ${TEMP_MATCH_DIR})" || exit $?
+    fail 4 "Failed to map TLV pipesignals to Verilog in ${fev_file}. (See work in ${TEMP_MATCH_DIR})"
   fi
   # Run full FEV
-  run_fev "$full_fev" "$full_fev" 4 "Full FEV (${full_fev}) failed" || exit $?
+  run_fev "$full_fev" "$full_fev" 4 "Full FEV (${full_fev}) failed" || record_and_exit $?
   # Make wip.tlv writable again (effective after fev_full.eqy run; others may need wip.tlv changes).
   chmod +w wip.tlv   # (no longer made read-only earlier)
 done
@@ -431,13 +470,13 @@ done
 rm -f fully_feved.tlv
 cp wip.tlv fully_feved.tlv
 chmod -w fully_feved.tlv
-# Record history.
+# Record history. Set the terminal success status first so the checkpoint records it.
 if ! cmp -s config.json ${NEXT_HISTORY_DIR}/config.json; then
   echo "WARNING: config.json changed since incremental FEV. History may be inconsistent."
 fi
-cp config.json ${NEXT_HISTORY_DIR}
+update_status 0 "All FEV runs successful! History updated."
+record_history
 cp fev_full*.eqy ${NEXT_HISTORY_DIR}/
-cp status.json ${NEXT_HISTORY_DIR}/
 rm -f ${NEXT_HISTORY_DIR}/prepared.sv
 ln -s ../../prepared.sv ${NEXT_HISTORY_DIR}/prepared.sv
 # Remove match_lines.eqy as an indication of completion.
@@ -456,5 +495,4 @@ cp wip*.sv full_sv/
 # Report success
 echo
 echo "All FEV runs successful!"
-update_status 0 "All FEV runs successful! History updated."
 
