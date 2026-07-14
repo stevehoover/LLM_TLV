@@ -1485,3 +1485,26 @@ Summary: Create a TLV macro wrapper around the existing TLV macro that requires 
 - For each submodule:
   - update the submodule's conversion work to incorporate any 
   - convert to TLV macros, incorporating 
+
+## Appendix: Known Failure Patterns (from serv_immdec analysis)
+
+**Scope condition polarity (Class A):** When creating a TLV hierarchy
+scope for a parameter-conditional generate block, the scope condition
+must match the block's actual if-condition, not the compiled
+for-generate loop's start value, which often uses inverted polarity.
+Example: `if (W == 1) begin : gen_w_eq1` must produce
+`/gen_w_eq1[W == 1 ? 0 \: -1 : 0]`, even though the compiled loop
+reads `for (gen_w1 = (W != 1); ...)`. Double-check against the
+original if-condition before running FEV.
+
+**Shift-register chains (Class C):** Before converting an if/else
+block to ternary, check whether any signal in the block is read by
+another signal's assignment in the same always block (a dependency
+chain). If so, do not convert those specific signals to standalone
+ternary — leave them as if/else and note this as an intentional
+exception, not a failure to retry.
+
+**Duplicate assignment after refactor (Class B):** After adding any
+new assignment for a signal, verify the old assignment for that same
+signal was removed from the same always block. A signal name should
+appear as an assignment target exactly once per block.
