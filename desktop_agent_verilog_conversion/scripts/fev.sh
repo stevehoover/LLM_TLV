@@ -170,8 +170,18 @@ function run_sandpiper() {
   fi
   local sv_file="${file}${config_suffix}.sv"
   rm -f ${sv_file}
-  run_tool "sandpiper_${file}${config_suffix}" "sandpiper-saas -i ${file}.tlv -o ${sv_file} ${config_m5def} --inlineGen --noline --iArgs" 2 "SandPiper failed for ${file}.tlv -> ${sv_file}"
-  status=$?
+  local sp_cmd="sandpiper-saas -i ${file}.tlv -o ${sv_file} ${config_m5def} --inlineGen --noline --iArgs"
+  # SandPiper-SaaS is a network service, so a nonzero exit can be a transient
+  # server/network error rather than a real input problem. Probe once and retry
+  # after a delay before recording a failure.
+  status=0
+  if ! eval "timeout 120s ${sp_cmd} > ${TEMP_DIR}/sandpiper_${file}${config_suffix}.log 2>&1"; then
+    echo "SandPiper failed for ${file}.tlv. Retrying once in 15s in case of a transient SandPiper-SaaS error."
+    sleep 15
+    rm -f ${sv_file}
+    run_tool "sandpiper_${file}${config_suffix}" "${sp_cmd}" 2 "SandPiper failed for ${file}.tlv -> ${sv_file}"
+    status=$?
+  fi
   if [[ $status -ne 0 ]]; then
     # Output the log.
     echo
