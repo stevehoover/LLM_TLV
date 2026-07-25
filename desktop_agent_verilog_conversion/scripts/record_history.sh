@@ -2,11 +2,12 @@
 
 # Snapshot the current conversion state into a history directory.
 #
-# Usage: ./record_history.sh [TARGET_HISTORY_DIR]
-#   With a directory argument, that directory is used (fev.sh passes the one it
-#   computed for the current refactoring step). With no argument, the next unused
-#   history/NNN directory is created (get_task.py and prep.sh use this to record a
-#   per-task or baseline snapshot).
+# Usage: ./record_history.sh <TARGET_HISTORY_DIR>
+#   Records into the given directory; each caller computes the directory it wants.
+#   fev.sh passes the directory it computed for the step (with its reuse logic),
+#   get_task.py passes the next directory for a no-op task, and prep.sh passes the
+#   baseline (001). This keeps the directory-numbering logic in the callers and out
+#   of here, so the directory is scanned for at most once per call site.
 #
 # Run from a module conversion directory. Copies whatever artifacts are present so
 # the checkpoint is self-contained; status.json is expected to already reflect the
@@ -17,19 +18,14 @@ set -uo pipefail
 # Directory of this script (for get_task.py).
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-mkdir -p history
-if [[ $# -ge 1 && -n "$1" ]]; then
-  dir="$1"
-  name="$(basename "$dir")"
-else
-  num=1
-  while [[ -d history/$(printf "%03d" "$num") ]]; do
-    num=$((num + 1))
-  done
-  name="$(printf "%03d" "$num")"
-  dir="history/${name}"
+if [[ $# -lt 1 || -z "$1" ]]; then
+  echo "ERROR: record_history.sh requires a target history directory (e.g. history/003)." >&2
+  exit 1
 fi
+dir="$1"
+name="$(basename "$dir")"
 
+mkdir -p history
 mkdir -p "${dir}"
 rm -f history/latest
 ln -s "${name}" history/latest
