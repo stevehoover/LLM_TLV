@@ -7,6 +7,11 @@ import subprocess
 
 script_dir = __file__.rsplit("/", 1)[0]
 
+# Sentinel task name written to status.json once the final task is done, so that
+# status.json reflects a finished conversion the same way it tracks every other
+# task. It is not a task in conversion_tasks.md; it is handled specially below.
+COMPLETION_TASK = "Conversion Complete"
+
 if len(sys.argv) != 2:
     print("get_task.py Help")
     print("----------------")
@@ -55,6 +60,10 @@ if next or current:
     if not current_task:
         print("ERROR: status.json does not contain 'task'.")
         sys.exit(1)
+    # If the conversion is already complete, there is no further task to report.
+    if current_task == COMPLETION_TASK:
+        print("This conversion is already complete. There are no further tasks.")
+        sys.exit(0)
     # Translate "current" to the actual current task title (then, its no longer a special case).
     if task_title == "current":
         task_title = current_task
@@ -162,4 +171,28 @@ if task_printed:
 if next and in_current_task:
     print("")
     print("Congratulations! You have completed the final task!")
+    # Mark the conversion complete the same way every task transition updates
+    # status.json, so status.json is the single source of truth for where the
+    # conversion stands, including "done". Also write a marker file so
+    # directory-scanning tools (the conversion console) can detect a finished
+    # conversion. Only mark complete when the final task's FEV is clean (none, or
+    # a passing "0:" result), the same standard as the advance guard above.
+    fev_status = status.get("fev.sh", "")
+    if fev_status == "none" or fev_status.startswith("0:"):
+        with open(f"status.json", "w") as f_status:
+            json.dump({
+                "task": COMPLETION_TASK,
+                "fev.sh": fev_status,
+                "fev_cnt": status.get("fev_cnt", 0),
+                "llm": status.get("llm", ""),
+            }, f_status, indent=4)
+        with open("CONVERSION_COMPLETE.md", "w") as f_complete:
+            f_complete.write(
+                "# Conversion Complete\n\n"
+                "All conversion tasks have been completed.\n\n"
+                f"- Final task: {current_task}\n"
+                f"- FEV status at completion: {fev_status}\n\n"
+                "This file is written by get_task.py when the final task is reached, so that\n"
+                "downstream tools can distinguish a finished conversion from one in progress.\n"
+            )
     sys.exit(0)
