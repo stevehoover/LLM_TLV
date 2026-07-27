@@ -102,6 +102,13 @@ function set_status() {
 # same directory (success refreshes the directory recorded on incremental pass).
 function record_history() {
   "${script_dir}/record_history.sh" "${NEXT_HISTORY_DIR}" > /dev/null
+  # Restore the original attribution when re-recording a reused checkpoint.
+  if [[ -n "${REUSED_TASK:-}${REUSED_MODEL:-}" && -f "${NEXT_HISTORY_DIR}/status.json" ]]; then
+    jq --arg t "${REUSED_TASK:-}" --arg m "${REUSED_MODEL:-}" \
+      '(if $t != "" then .task = $t else . end) | (if $m != "" then .model = $m else . end)' \
+      "${NEXT_HISTORY_DIR}/status.json" > "${NEXT_HISTORY_DIR}/status.tmp.json" \
+      && mv "${NEXT_HISTORY_DIR}/status.tmp.json" "${NEXT_HISTORY_DIR}/status.json"
+  fi
 }
 
 # Record a failure status, snapshot the history, and exit. Usage: fail <status> <msg>
@@ -307,6 +314,12 @@ if [[ $NEED_FULL_FEV == true ]]; then
 elif [[ $diff_status -eq 0 && $NEXT_HISTORY_NUM -gt 1 ]] && prev_is_pass; then
   echo "wip.tlv is unchanged from previously passing (at least incremental) FEV. Reusing history/$(printf "%03d" "${PREV_HISTORY_NUM}"))."
   NEXT_HISTORY_NUM=$PREV_HISTORY_NUM
+  # This run adds no source change, so the reused checkpoint keeps its original
+  # attribution. Without this, a later task that leaves wip.tlv untouched
+  # re-records the directory with whatever task/model is in status.json now,
+  # silently relabeling the earlier task's passing checkpoint.
+  REUSED_TASK=$(jq -r '.task // ""' "history/$(printf "%03d" "${PREV_HISTORY_NUM}")/status.json" 2>/dev/null || true)
+  REUSED_MODEL=$(jq -r '.model // ""' "history/$(printf "%03d" "${PREV_HISTORY_NUM}")/status.json" 2>/dev/null || true)
 fi
 NEXT_HISTORY_NAME=$(printf "%03d" "${NEXT_HISTORY_NUM}")
 NEXT_HISTORY_DIR=history/${NEXT_HISTORY_NAME}
