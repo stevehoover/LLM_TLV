@@ -126,6 +126,17 @@ function prev_is_pass() {
   [[ -f "$f" ]] && [[ "$(jq -r '.["fev.sh"] // ""' "$f" 2>/dev/null)" == 0:* ]]
 }
 
+# True if the previous history checkpoint belongs to the same task as the
+# current status.json. A checkpoint directory may only ever be reused within
+# one task: re-recording under a new task overwrites the old task's recorded
+# attribution (a passing checkpoint silently changes owner). Every new task
+# therefore gets a fresh checkpoint, even when wip.tlv is unchanged.
+function prev_task_matches() {
+  local f="history/$(printf "%03d" "${PREV_HISTORY_NUM}")/status.json"
+  [[ -f "$f" ]] && \
+    [[ "$(jq -r '.task // ""' "$f" 2>/dev/null)" == "$(jq -r '.task // ""' status.json 2>/dev/null)" ]]
+}
+
 # Run a tool command, logging output to TEMP_DIR and returning the given exit status or failure or 0 on success.
 function run_tool() {
   local job="$1"
@@ -301,11 +312,15 @@ if [[ $NEED_FULL_FEV == true ]]; then
     NEED_FULL_FEV=false
   else
     echo "Running full FEV only (failed previously)."
-    # Continue ongoing work in previous history directory, only running full FEV.
-    NEXT_HISTORY_NUM=$PREV_HISTORY_NUM
+    if prev_task_matches; then
+      # Continue ongoing work in previous history directory, only running full FEV.
+      NEXT_HISTORY_NUM=$PREV_HISTORY_NUM
+    else
+      echo "Task changed since that attempt; recording into a fresh checkpoint."
+    fi
   fi
-elif [[ $diff_status -eq 0 && $NEXT_HISTORY_NUM -gt 1 ]] && prev_is_pass; then
-  echo "wip.tlv is unchanged from previously passing (at least incremental) FEV. Reusing history/$(printf "%03d" "${PREV_HISTORY_NUM}"))."
+elif [[ $diff_status -eq 0 && $NEXT_HISTORY_NUM -gt 1 ]] && prev_is_pass && prev_task_matches; then
+  echo "wip.tlv is unchanged from previously passing (at least incremental) FEV within the same task. Reusing history/$(printf "%03d" "${PREV_HISTORY_NUM}")."
   NEXT_HISTORY_NUM=$PREV_HISTORY_NUM
 fi
 NEXT_HISTORY_NAME=$(printf "%03d" "${NEXT_HISTORY_NUM}")
