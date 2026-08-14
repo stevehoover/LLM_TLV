@@ -1,0 +1,44 @@
+# Minimal, reproducible verification-toolchain image for the conversion flow.
+#
+# This is NOT the agent container (see Dockerfile for that). It holds only what
+# scripts/fev.sh needs: SandPiper SaaS, OSS CAD Suite (Yosys/EQY/sby), and the
+# small utilities the scripts call (jq, make, time, diffutils). Use it to run
+# FEV headless on a server or in CI, or to re-verify a conversion without
+# installing Claude Code.
+#
+# Everything is pinned, so the image rebuilds identically on any machine
+# (x64 and arm64). Motivation: a hand-modified toolchain image was lost to a
+# Docker restart with no recipe to rebuild it; this file is the recipe.
+#
+# Build:  docker build -f Dockerfile.fev -t fev-toolchain .
+# Run:    docker run --rm -v <checkout>:/workspace/proj:rw \
+#           -w /workspace/proj/tlv/<module> --entrypoint bash fev-toolchain \
+#           -lc 'export PATH=/opt/oss-cad-suite/bin:$PATH; ./scripts/fev.sh'
+
+FROM ubuntu:24.04
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        bash python3 python3-pip curl ca-certificates xz-utils time git make jq diffutils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pinned oss-cad-suite release (Yosys 0.58, EQY 0.58). Bump deliberately: EQY
+# behavior (partitioning, strategies) shifts between releases and changes what
+# proves cleanly.
+ARG OSS_CAD_TAG=2025-10-15
+RUN set -e; d=$(echo ${OSS_CAD_TAG} | tr -d -); \
+    case "$(dpkg --print-architecture)" in \
+      amd64) a=x64 ;; \
+      arm64) a=arm64 ;; \
+      *) echo "unsupported arch" && exit 1 ;; \
+    esac; \
+    curl -fL -o /tmp/oss.tgz \
+      "https://github.com/YosysHQ/oss-cad-suite-build/releases/download/${OSS_CAD_TAG}/oss-cad-suite-linux-${a}-${d}.tgz"; \
+    tar -xzf /tmp/oss.tgz -C /opt; rm /tmp/oss.tgz
+
+RUN pip3 install --break-system-packages sandpiper-saas==1.1.0
+
+# HOME=/tmp lets the container run as any uid (docker run -u), and the touched
+# file pre-accepts the Makerchip terms of service so sandpiper-saas does not
+# block on an interactive prompt in headless runs.
+ENV HOME=/tmp
+RUN touch /tmp/.makerchip_accepted
