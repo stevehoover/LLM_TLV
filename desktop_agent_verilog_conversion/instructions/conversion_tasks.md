@@ -166,6 +166,20 @@ Completion: This task is complete only once all `if`/`else` chains and tick-ifde
 
 Update `tracker.md`, capturing a list of remaining `if` chains conditions and tick-ifdef/ifndef conditions that will need to be parameterized using M5.
 
+**Stage alignment in EQY match lines:**
+
+When adding a `[match]` entry for a newly converted TL-Verilog
+pipesignal, explicitly check the stage/transaction alignment of the
+pipesignal reference.
+
+For pipesignals referenced through a pipeline scope such as
+`|default`, the match may require an explicit `<>0` alignment suffix.
+For example:
+
+```text
+gold-match is_uncore_aperture |default<>0$is_uncore_aperture
+```
+
 Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.
 
 
