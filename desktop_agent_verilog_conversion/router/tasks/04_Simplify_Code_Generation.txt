@@ -1,0 +1,52 @@
+Summary: Where possible, remove logic from generate `if`/`else` blocks.
+
+Generate `if` blocks are particularly problematic to convert to TL-Verilog. TL-Verilog uses M5 for code construction/elaboration, and, at this point, we need to retain the module parameterization, which isn't possible if we convert to M5.
+
+In this task, you will eliminate as many generate `if`/`else` blocks as we reasonably can. Note that in SystemVerilog, the use of `generate` and `endgenerate` keywords is optional.
+
+Complete this task one generate `if` block at a time, together with its chained `else if`/`else` blocks.
+
+We can eliminate a chain of blocks if all of its assignment expressions would be valid under all conditions--if they can be moved outside of the blocks without introducing compilation errors. The downside is that, under certain parameters, logic will be included in the design that isn't needed. This logic is necessarily unused (dead) logic, and, in most cases, logic synthesis tools will easily remove it from the design.
+
+Identify assignments or groups of assignments that can be safely move out from conditioning ('if', tick-ifdef, etc.). The right-hand-side expression(s) must depend only on signals/pipesignals that are similarly unconditioned. Bit ranges must remain valid when unconditioned.
+
+Blocks that contains an instantiation of a non-trivial module, function, or macro should not be refactored.
+
+Consider multiple blocks of logic under the same condition together. The goal is to reduce the number of configurations that construct different code. Remaining configurations will be dealt with in a subsequent task. Capture in `status.json`'s `llm` field a list of the blocks/conditions you intend to eliminate.
+
+For each generate `if` chain or tick-ifdef/ifndef that is to be refactored, incrementally transition logic declarations and assignment statements/blocks outside the condition. It may be necessary to uniquify the signal names as you do. Signals originally assigned under different conditions can be converted to ternary expressions as they are pulled out. Provide comments, like `// relevant if BYPASS` as statements are removed from `if (BYPASS)`.
+
+You'll need to update match sections accordingly. Dead signals have nothing to map to. Hopefully, they don't create FEV issues. Inform the user if they do.
+
+Let's talk through an example. Let's consider the following `if` block. (It performs a cyclic find-first, assigning `o_next_mask` (`logic [N-1:0]`), based on a valid mask `logic [N:0] i_valid_mask` and an encoded current index `logic [$clog2(N)-1:0] i_current`). The `if`/`else` block treats the degenerate `N=1` case specially.
+
+```
+if (N <= 1) begin: nn_eq1
+   assign o_next_mask = {N{1'b0}};
+end else begin: nn_gt1
+   logic [N-1:0] valid_hi;
+   assign valid_hi = i_valid_mask & ~( (1 << i_current) - 1);
+   assign o_next_mask = | valid_hi ? find_first(valid_hi) : find_first(i_valid_mask);
+end
+```
+
+According to the guidance above, we might not refactor this block because it calls a function (`find_first`). But, let's look at the refactoring anyhow.
+
+This block might ultimately become:
+
+```
+// relevant if (N > 1)
+logic [N-1:0] valid_hi_n_gt1, next_mask_n_gt1;
+assign valid_hi_n_gt1 = i_valid_mask & ~( (1 << i_current) - 1);
+assign next_mask_n_gt1 = | valid_hi_n_gt1 ? find_first(valid_hi_n_gt1) : find_first(i_valid_mask);
+// end if (N > 1)
+assign o_next_mask = (N <= 1) ? {N{1'b0}} : next_mask_n_gt1;
+```
+
+The expression for`valid_hi` has been pulled out as `valid_hi_n_gt1`. The expression for `o_next_mask` has been pulled out as `next_mask_n_gt1`. And `o_next_mask` is now assigned with a ternary expression. While the new intermediate signal, `next_mask_n_gt1`, wasn't necessary, introducing it helps to isolate logic that is specific to N > 1.
+
+Completion: This task is complete only once all `if`/`else` chains and tick-ifdef/ifndef sections have been refactored or determined to be poor candidates for refactoring.
+
+Update `tracker.md`, capturing a list of remaining `if` chains conditions and tick-ifdef/ifndef conditions that will need to be parameterized using M5.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

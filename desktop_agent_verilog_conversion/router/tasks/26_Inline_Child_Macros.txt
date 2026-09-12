@@ -1,0 +1,37 @@
+Summary: Replace child module instantiations with the children's TLV macros.
+
+This step applies only when the module instantiates submodules whose own
+conversions are complete (each child's directory holds a fully_feved.tlv
+whose logic lives in a `\TLV <child_name>(/_top)` macro). If the module has
+no submodule instantiations, report NO_CHANGE. If a child's conversion is
+not complete, stop and report which child is missing.
+
+Transform the module one child at a time:
+
+1. Reference each child's macro from its own file with the M5 include
+   mechanism rather than copying the definition in. The include line goes
+   near the top of the file, after the version line and `use(m5-1.0)`.
+2. Replace the child's module instantiation (inside `\SV_plus`) with an
+   `m5+<child_name>(/_top)` macro instantiation in the enclosing scope.
+3. Connect the interfaces. Where the parent wire feeding a child port and
+   the child macro's pipesignal share a name, the connection happens by
+   itself and the wire disappears. Where names differ, keep a one-line
+   pipesignal assignment per signal. Where two children would collide on
+   the same pipesignal name used for different things, rename in the
+   including file, not in the child's macro.
+4. Any parameters the instantiation passed become the corresponding M5
+   configuration knobs of the child macro; carry them through the include.
+
+The verification reference does not change: FEV still compares against the
+flattened original Verilog hierarchy from the previous step, so the match
+lines with instance-prefixed gold names continue to apply. Do not weaken
+or remove them.
+
+Report in tracker.md the line count before and after, and which wires
+disappeared through shared names.
+
+Be sure all changes for this task have been completed fully and that
+`./scripts/fev.sh` passes before reviewing
+`instructions/desktop_agent_instructions.md` and running
+`./scripts/get_task.py next`. If the task was not fully successful,
+wrap-up, update the user, and stop working, awaiting user guidance.

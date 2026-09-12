@@ -1,0 +1,1 @@
+The goal is that generate/for-loop replicated assignments are re-expressed using TLV hierarchical scope (e.g. /name[range] with $signal assignments inside the scope). FAIL if for loops or generate blocks performing per-element assignments still exist, including ones moved into \SV_plus, when an equivalent TLV scoped expression is possible.

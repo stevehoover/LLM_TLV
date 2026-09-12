@@ -1,0 +1,79 @@
+Summary: Replace generate `if` and tick-ifdef/ifndef with M5-based conditioning.
+
+There should now be the necessary M5 condition variables defined to use M5-based code construction in place of generate `if` and tick-ifdef/ifndef conditioning.
+
+```tlv
+   m5_if_eq_block(m5_cond_xxx, 0, ['
+   // cond true
+   '], ['
+   // cond false
+   '])
+```
+
+Will result in:
+
+```tlv
+   
+   // cond true
+   
+   
+   
+```
+
+or:
+
+```tlv
+   
+   
+   
+   // cond false
+   
+```
+
+Lines are kept aligned between source TLV and generated Verilog files.
+
+A Verilog generate `if` might be converted as follows:
+
+```verilog
+   reg foo;
+   if (RESET == "INIT") begin : foo_reset
+      initial foo = 1'b0;
+      always_ff @(posedge clk) foo <= bar;
+   end else begin : foo_init
+      always_ff @(posedge clk) foo <= reset ? 1'b0 : bar;
+   end
+```
+
+Can be converted to:
+
+```tlv
+   logic foo;
+   m5_if_eq_block(m5_cond_reset, 0, ['
+   initial foo = 1'b0;
+   always_ff @(posedge clk) foo <= bar;
+   '], ['
+   always_ff @(posedge clk) foo <= reset ? 1'b0 : bar;
+   '])
+```
+
+This impacts the Verilog hierarchy, and may require other code updates. A more incremental approach is recommended, by first updating to:
+
+```tlv
+   logic foo;
+   m5_if_eq_block(m5_cond_reset, 0, ['
+   if (1) begin : foo_init
+      initial foo = 1'b0;
+      always_ff @(posedge clk) foo <= bar;
+   end
+   '], ['
+   if (1) begin : foo_reset
+      always_ff @(posedge clk) foo <= reset ? 1'b0 : bar;
+   end
+   '])
+```
+
+This preserves the hierarchy, and allows testing with `./scripts/fev.sh` before flattening the hierarchy by removing the `if (1)` conditions.
+
+Convert all conditions to M5. This task is successfully complete when all generate `if` chains (including `if (1)`) and all use of tick-ifdef/ifndef have been eliminated.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

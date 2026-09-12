@@ -1,0 +1,11 @@
+Add to the `[match ...]` section of `fev_full.eqy` (not `fev.eqy`) a match line for every internal signal (not module interface signals) in the `wip.tlv` module (using default parameter values). The section should look like:
+
+```
+[match <module>]
+gold-match foo foo
+gold-match bar bar
+```
+
+`fev.sh` will update this as you proceed.
+
+Even though there is no update to `wip.tlv` for this step, run `fev.sh` anyway to checkpoint your work in `history/`.

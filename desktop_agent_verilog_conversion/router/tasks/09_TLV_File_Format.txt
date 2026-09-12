@@ -1,0 +1,57 @@
+Summary: Format the file as a TL-Verilog file with M5 support with module contents in an `\SV_plus` block.
+
+Convert the code to TLV file format with M5 support. As a first step, the code can all be in one big `\SV` region. This simply requires prepending these lines to the beginning of the file:
+
+```tlv
+\m5_TLV_version 1d: tl-x.org
+\m5
+   use(m5-1.0)
+\SV
+```
+
+Next, put the top module body (excluding the `clk` declaration and assignment, if there is one) in `\SV_plus` context, where the use of TL-Verilog pipesignals is permitted. Move it into an `\SV_plus` block in stage 0 (`@0`) of a "default" pipeline (`|default`). So:
+
+```tlv
+\m5_TLV_version 1d: tl-x.org
+\m5
+   use(m5-1.0)
+\SV
+module(...);
+   wire clk = ...;
+<module-body>
+endmodule
+```
+
+becomes:
+
+```tlv
+\m5_TLV_version 1d: tl-x.org
+\m5
+   use(m5-1.0)
+\SV
+module(...);
+   wire clk = ...;
+\TLV
+   |default
+      @0
+         \SV_plus
+            <module-body>
+\SV
+endmodule
+```
+
+Be sure to use three spaces of indentation for each TLV scope and within the `\SV_plus` block. Indent `|default` 3 spaces, `@0` 6 spaces, `\SV_plus` 9 spaces, and the entire module body 12 spaces. This is a good opportunity to apply consistent indentation within the module body as well. (This body need not use specifically three spaces for indentation.)
+
+Code in an `\SV_plus` block is parsed for TLV identifiers. At this point, we should have no TLV identifiers, so we must avoid all syntax that could be mistaken as a TLV identifier. Identifiers begin with one or more symbol characters and are followed immediately by word characters.
+
+The first change you can make to reduce the likelihood of false matches also establishes consistent coding conventions. Make sure all Verilog operators (unary, binary, arithmetic, ternary, and range specifiers like (`:`)) have whitespace separating them from any neighboring word characters. `=` and `<=` must always have whitespace on either side. Most Verilog coding guidelines would not suggest whitespace after unary operators like `!`, `~`, `|`, `&`, and `^` and in ranges, but, for TL-Verilog, it is best practice to have whitespace separation. This distinguishes, for example, `| foo` as a unary operator versus `|foo`, a pipeline called `foo`. Be sure to catch these common unary opeartor scenarios.
+
+Next, some valid Verilog syntax, such as `$clog2`, `$display`, `%s`, and `@10` requires word characters immediately following symbol characters, and whitespace separation cannot be introduced. We need to ensure that these valid Verilog strings are not interpreted as TL-Verilog syntax. The `\` escape character can be used for this purpose within `\SV_plus` context. `\` ensures that the next character is treated as a literal Verilog character, so `$clog2`, `$display`, `%s`, and `@10` must become `\$clog2`, `\$display`, `\%s`, and `\@10`. Symbols of concern are  `$`, `@`, `|`, `/`, `#`, `%`, `*`, and `\`. Only symbol characters that immediately precede word characters need escaping. For example `!foo && bar && |baz` would need escaping as `!foo && bar && \|baz`--`!` is not a symbol of concern, and `|` is. `! foo && bar && | baz`, however, needs no escaping because of the whitespace separation. In practice, it should be fairly rare that escaping is required. Conflicting syntax occurs most commonly in test bench and logging code, and our module shouldn't contain test bench code.
+
+Note that these `\`s will carry over into `\TLV` assignment expressions, which also use Verilog syntax.
+
+Before testing, double-check your indentation (3 spaces for each scope; no tabs). The whole <module-body> must be indented properly. This often trips you up.
+
+In case you have difficulty with this task, the `\SV` region can be converted to an `\SV_plus` block incrementally, moving a subset of lines from the `\SV` block to the `\SV_plus` block in each step (keeping the overall order of the lines consistent).
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

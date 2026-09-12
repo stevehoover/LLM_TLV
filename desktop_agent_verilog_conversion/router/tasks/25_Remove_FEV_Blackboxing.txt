@@ -1,0 +1,30 @@
+Summary: Get FEV passing without black-boxed submodules.
+
+This step applies only when the module instantiates submodules and the FEV
+configuration black-boxes them (the [gold]/[gate] sections or the scripts
+treat child modules as opaque cells). If there is no black-boxing in any
+fev*.eqy file, report NO_CHANGE.
+
+Reconfigure FEV so the children are verified as part of this module rather
+than assumed equal:
+
+- Include each child's Verilog in both the gold and gate reads (the gold
+  side reads the original child .v files; the gate side reads the generated
+  Verilog of the converted children).
+- Flatten the hierarchy in the [script] section (`hierarchy -top <top>
+  -check` then `flatten`) on both sides.
+- After flattening, child state carries instance prefixes on the gold side
+  (e.g. `child_inst.reg_name`). Add gold-match lines mapping those
+  prefixed names onto the gate names. If the child contains a memory, add
+  `memory_collect` and `memory_map` to the script and match the memory
+  word by word (`gold-match child_inst.mem[0] mem[0]` and so on); generate
+  these lines rather than writing them by hand when the memory is large.
+
+This task changes no design code. Only fev*.eqy files (and status notes)
+may change. FEV must pass for every configuration when done.
+
+Be sure all changes for this task have been completed fully and that
+`./scripts/fev.sh` passes before reviewing
+`instructions/desktop_agent_instructions.md` and running
+`./scripts/get_task.py next`. If the task was not fully successful,
+wrap-up, update the user, and stop working, awaiting user guidance.

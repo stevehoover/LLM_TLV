@@ -1,0 +1,143 @@
+Summary: Procedural `if`/`else`/`case` expressions are converted to ternary expressions.
+
+Procedural `if`/`else` constructs and `case*` statements assign signals to different expressions under different conditions. TL-Verilog favors the use of ternary expressions for such assignments because ternary expressions follow single assignment semantics. (They also isolate the assignments of each signal, resulting in finer granularity assignments. Since assignments are the atomic unit of timing abstraction, this results in greater timing flexibility.)
+
+`if`/`else`/`case` may not assign a signal in all cases. Ternary expressions are explicit in all cases. Unassigned cases must explicitly retain the previous value in the ternary expression.
+
+Let's look at some examples (declarations not shown):
+
+```verilog
+always_comb
+   if (cond)
+      y = b;
+   else
+      y = c;
+```
+
+becomes:
+
+```verilog
+always_comb
+   y = cond ? b : c;
+```
+
+Let's look at a more interesting example.
+
+```verilog
+always_ff @(posedge clk) begin
+   if (valid) begin
+      if (cond1)
+         y <= b;
+      else if ($cond2)
+         y <= c;
+      else begin
+         y <= d;
+         z[7:0] <= e;
+      end
+   else
+      y <= f;
+   end
+end
+```
+
+Note that `y` is assigned under all conditions, but `z` is not and must be retained when not assigned.
+
+This example can be transformed incrementally, first transforming the inner assignment of `y`:
+
+```verilog
+always_ff @(posedge clk) begin
+   if (valid) begin
+      y <=
+         cond1 ? b :
+         cond2 ? c :
+                 d;
+      if (cond1) begin
+      end else (cond2) begin
+      end else
+         z[7:0] <= e;
+   else
+      y <= f;
+   end
+end
+```
+
+Note that the empty conditions, above, are acceptable, but `begin`/`end` must be added.
+
+Continuing to refactor `y` and `z`:
+
+```verilog
+always_ff @(posedge clk) begin
+   y <=
+      $valid ?
+         cond1 ? b :
+         cond2 ? c :
+                  d :
+      //default
+         f;
+   if (valid && (! cond1 && ! cond2))
+      z[7:0] <= e;
+end
+```
+
+Then to refactor `z` to use a ternary expression, we must explicitly recirculate `z`.
+
+```verilog
+always_ff @(posedge clk) begin
+   z[7:0] <= valid && (! cond1 && ! cond2) ? e : z;
+```
+
+Since `always` blocks have sequential semantics, signals may be assigned and reassigned. This can get tricky to map to ternary semantics for several reasons. In an `if`/`else` chain, the final assignment takes priority, whereas, in a ternary chain, the first case takes priority, so the order of cases must be reversed. Also, for blocking assignments, subsequent assignments can depend on earlier ones. It can help to create intermediate signals in these cases. Take complex cases one signal at a time (and even an incremental step toward one signal at a time). The code for a given signal can get distributed over a long `if`/`else` chain. It can help to first consolidate the logic for a signal by constructing its own `if`/`else` chain. Then convert that. You can convert an inner `if`/`else` chain before converting an outer chain. Break the control flow down into cases (conditions). Define new intermediate signals for these conditions if they will be reused by other signals. Then, with the cases mapped out, introduce the ternary expression. Generally, favor a flat organization of cases over a nested structure of ternary expressions for readability.
+
+`case*` statements can be transformed similarly.
+
+```verilog
+always_comb begin
+   case (sel)
+      2'b00: y[7:0] = 8'hAA;
+      2'b11: y = 8'h55;
+      default: y = 8'h00;
+   endcase
+end
+```
+
+Results in:
+
+```verilog
+assign y[7:0] =
+      (sel == 2'b00) ? 8'hAA :
+      (sel == 2'b11) ? 8'h55 :
+                       8'h00;
+```
+
+Like `if`/`else` chains, `case` without `default` can infer latches and the resulting ternary expression must explicitly recirculate the value.
+
+`unique case` implies exclusivity. The case conditions must be one-hot. They imply runtime checking and enable logic synthesis optimizations. To achieve this with ternary expressions, add assertions and runtime checking that exactly one of the conditions of the `unique case` is asserted.
+
+For example:
+
+```verilog
+always_comb begin
+   unique case (sel)
+      2'b01: y = 8'hAA;
+      2'b10: y = 8'h55;
+   endcase
+end
+```
+
+```verilog
+always_comb begin
+   y[7:0] =
+      (sel === 2'b01) ? 8'hAA :
+      (sel === 2'b10) ? 8'h55 :
+                        'x;  // impossible
+end
+assert property (@(posedge clk) $onehot(sel));
+```
+
+If you have trouble getting the assertion correct, make a note of the potential checking/synthesis implications in `tracker.md`.
+
+Refactor in a manner that minimizes common subexpressions. Create intermediate signals for subexpressions, such as condition expressions affecting multiple signals. New intermediate signals do not need to be matched in `fev*.eqy`.
+
+The conversion to ternary expressions organizes the logic differently. Often, we have a matrix of conditions and signals, and we have a value to assign (or retain) in each cell of that matrix. The `if`/`else` chain or `case` breaks this matrix first by condition, then by signal. Using ternaries, organizes code first by signal, then by condition. There are pros and cons either way. When signals are tightly associated, the `if`/`else` organization can be more readable/maintainable. This can be mimicked using ternaries by assigning concatenations of signals to concatenations of expressions within the ternary. Consider building up concatenations versus replicating ternary structure, although, do not overuse this. It is easy to introduce bugs with this structure with mis-aligned bits in the concatenations, so it can be a maintenance issue. Find a reasonable balance based on the scenario.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

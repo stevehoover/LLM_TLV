@@ -1,0 +1,84 @@
+Summary: Convert internal boolean and bit-vector Verilog signal assignments to TL-Verilog pipesignal assignments.
+
+In this task, you'll convert signal assignments to TL-Verilog and their assigned signals to pipesignals. Exclude:
+
+- anything outside the `\TLV` region
+- the declaration and assignment of `clk` (which should be in the `\SV` region, not `\TLV`, anyway)
+- anything assigned within a generate block (noting that in SystemVerilog the `generate` keyword is optional)
+- anything assigned within a procedural `for` loop
+- signals with signed or user-defined types (non-bit vector)
+- signals assigned by a module, function, or macro instantiation.
+
+All logic remains in `|default@0` for this task.
+
+Each assignment can be converted independently of the others. To preserve file structure, convert from top to bottom, essentially migrating the `\SV_plus` line downward as you go. You can use this `\SV_plus` line as your progress indicator. Label it with `\SV_plus   // YOU ARE HERE` to distinguish it from other `\SV_plus` lines you might introduce. Remove the indicator comment (or the whole line, as appropriate) when done with the task.
+
+As you convert lines, any that must remain in `\SV_plus` context can be kept as such by creating a new `\SV_plus` block for them, maintaining the order of statements. For example:
+
+```
+\SV_plus   // YOU ARE HERE
+   localparam max = 10;
+   reg foo;
+   ...
+```
+
+becomes:
+
+```
+\SV_plus
+   localparam max = 10;
+   reg foo;
+\SV_plus   // YOU ARE HERE
+   ...
+```
+
+As above, Verilog signal declarations can remain in `\SV_plus` until their corresponding assignments are converted, at which point, they can be deleted. `localparam` declarations, Verilog type declarations, and anything else not involved in this task can remain in `\SV_plus` throughout this task.
+
+M5-conditioned sections beginning with, e.g., `m5_if_eq_block(m5_cond_w_1, 1, ['`, do not affect your ability to refactor the code. Use similar M5 conditioning context for the converted code.
+
+Assignments of module output signals can be pulled out of `\SV_plus`. Add a `*` prefix to Verilog signals (assigned and used), if not already present. E.g. `*o_foo = *o_bar + $baz;`.
+
+Convert `assign` assignments as follows:
+
+- Add a `$` prefix to the assigned name(s) everywhere in `wip.tlv`. (Optionally, you can use, e.g., `./scripts/rename_sigs.py foo $foo`.)
+- Move the assignment out from its `\SV_plus` block as a TLV assignment. TLV assignments combine declaration and assignment, e.g. `$foo[3:0] = ...;`.
+- Remove the Verilog signal declaration.
+
+TL-Verilog assignments use Verilog `assign` syntax except:
+
+- The `assign` keyword is dropped.
+- For vectors (non-booleans) the bit range is added immediately after the pipesignal identifier and uses Verilog syntax, e.g. `$foo[WIDTH-1:0] = ...;`.
+- Verilog signals in TLV assignments should be prefixed by `*` (though it's not actually necessary).
+- Concatenations on the left-hand side are permitted, e.g. `{*foo, <<1$bar[1:0]} = ...;`. Preserve the concatenation structure from the original assignments.
+
+The rest should be non-blocking assignments. These convert similarly, except the value being assign is the next value of the signal--taking effect after the clock edge. In TL-Verilog we express the next value by prepending `<<1`. Thus, the most direct conversion of:
+
+```
+always @(posedge clk)
+   foo <= bar;
+```
+
+is:
+
+```
+<<1$foo = bar;
+```
+
+Non-blocking assignments that use a conditioned clock (gated/enabled) can be converted using recirculation. The value must be held--explicitly recirculated when the clock is conditioned off. For example:
+
+```
+   \TLV
+      \SV_plus
+         wire gated_clk = clk & $en;
+         always_ff @(posedge gated_clk)
+            $$foo = $bar;
+```
+
+becomes:
+
+```
+   \TLV
+      <<1$foo = $en ? $bar : $foo;
+```
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

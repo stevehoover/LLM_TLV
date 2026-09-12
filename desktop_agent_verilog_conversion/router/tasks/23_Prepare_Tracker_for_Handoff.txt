@@ -1,0 +1,15 @@
+Summary: Prepare `tracker.md` for handoff to the user
+
+Give `tracker.md` one final review and cleanup. Ensure that it is succinct, complete, accurate, properly formatted as Markdown, and useful to the user to review your work and address remaining issues.
+
+Declare success only if:
+
+- `fev.sh` passed for all FEV runs
+- `fev*.eqy` are sound in their methodology
+- all conversion steps substantially met their goals
+
+Bring every shortcoming or concern to light. Have the mindset of a verification engineer. `tracker.md` should not recount the successes, only highlight areas of concern. Mere progress tracking can be removed. It is understood that all tasks were completed unless otherwise noted.
+
+Assess the impact that your conversion had and incorporate this into `tracker.md`. Did the code grow or shrink, and why? What about just the TLV macro versus the original module? Does TLV context provide more or less structure? Also assess obstacles to further optimizations. Suggest further optimizations the user might want to consider, if any, and explain why you were unable to make these optimizations yourself, such as functional change that couldn't be FEVed. Reflect these in `tracker.md`.
+
+Run `fev.sh` again, unless you are certain it was already run successfully, and CONGRATULATIONS ON COMPLETING YOUR ASSIGNMENT!!!

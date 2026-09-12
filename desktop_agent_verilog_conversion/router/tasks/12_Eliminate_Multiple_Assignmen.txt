@@ -1,0 +1,19 @@
+Summary: If any constructs remain containing multiple statements assigning the same signal, try to eliminate them.
+
+Look over `wip.tlv` to see if there are any constructs containing multiple statements assigning the same signal. These require special consideration in TL-Verilog and should have already been eliminated by prior tasks. If you find any, report the oversight in `tracker.md` if not already reported, and see if you can find a way to eliminate them. Look back at prior task instructions that may relate to the situation.
+
+Specifically, multiple assignments of concern could occur in the following constructs:
+
+- `case*` and procedural `if`/`else` (under different conditions)
+- `always` blocks (that reassign a signal)
+- generate `if` (under mutually exclusive conditions)
+- different tick-ifdef/ifndef sections (under mutually exclusive conditions)
+
+Yosys will report a fatal error for multiple concurrent assignments in different `case`, `if`/`else`, and `always` blocks, unless they are mutually exclusive based on code elaboration (generate `if`/`else` chains and tick-ifdef/ifndef), so you don't need to detect these concurrent situations.
+
+Some scenarios are okay and may remain:
+
+- Assignments under mutually exclusive M5 conditions are fine. For complex M5 configurations, it might be easier to analyze the generated Verilog (being sure it is current), though this may require analyzing numerous files.
+- Initial assignments (e.g., `initial foo = 1'b0;` or `logic foo = 1'b0;`) are not considered assignments for this task.
+
+If you made any code changes (even just comments), ensure that `./scripts/fev.sh` passes.

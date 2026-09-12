@@ -1,0 +1,42 @@
+User guidance for "Naming Conventions", from diagnosing your 12 failed FEV runs
+and from this module's previously completed conversion (its history checkpoint
+for this exact task is the source of the verified example below).
+
+WHY YOUR ATTEMPTS FAILED: you renamed signals in wip.tlv but wrote no match
+lines into fev.eqy (you only touched fev_full*.eqy). Incremental FEV compares
+feved.sv (old names) against wip.sv (new names). EQY cuts the design at
+matched registers; a renamed register with no match line does not get cut, so
+the whole self-referencing shift register lands inside one partition and
+k-induction returns UNKNOWN (you saw basecase pass and induction fail on
+serv_immdec.o_rs2_addr.4 and o_rd_addr.4). The fix is bookkeeping, not logic.
+
+RULE: for EVERY signal you rename, in the same attempt:
+
+1. Add to the [match serv_immdec] section of fev.eqy:
+     gold-match <old_name> <new_name>
+   The gold side is the name as it exists in feved.sv (the state before your
+   edit; plain flat names like imm24_20, i31). The gate side is your new name.
+
+2. Update the GATE side of that signal's existing gold-match lines in
+   fev_full.eqy, fev_full_W_1_SHARED_0.eqy and fev_full_W_4.eqy. Their gold
+   side keeps the prepared.sv scoped names (gen_immdec_w_eq_1.*,
+   gen_immdec_w_eq_4.*) and must not change.
+
+VERIFIED EXAMPLE from the previous conversion of this module: it renamed the
+W=4 arm registers i31..i7 to ii31..ii7 (and i7_2, i20_2 to ii7_b2 style
+names). After the task, its fev_full_W_4.eqy match section read:
+     gold-match gen_immdec_w_eq_4.i31 ii31
+     gold-match gen_immdec_w_eq_4.i30 ii30
+     ... (one line per renamed register, old prepared name -> new name)
+and during the task its fev.eqy carried the corresponding
+     gold-match i31 ii31
+style lines, which the harness consumed after the pass.
+
+REMINDERS:
+- Rename only. Do not restructure logic, do not change strategies, do not
+  touch [collect] or [partition] sections.
+- The harness EMPTIES fev.eqy's match section after every successful fev.sh
+  run. If your first attempt fails and you edit further, verify your rename
+  lines are still present in fev.eqy before the next run.
+- If you rename nothing in a config-specific arm, its fev_full file needs no
+  change.

@@ -1,0 +1,186 @@
+User guidance for "Consolidate the SV-TLV Interface". After repeated failed
+rounds, here is the COMPLETE solution for your exact current file, verified
+green through the full multi-config FEV suite (incremental, W_1_SHARED_1,
+W_1_SHARED_0, W_4). Reproduce it exactly.
+
+Output the ENTIRE wip.tlv below verbatim as a full file inside your
+===FILE: wip.tlv=== block. Do NOT use search/replace blocks. Do not modify
+any other file.
+
+\m5_TLV_version 1d: tl-x.org
+\m5
+   use(m5-1.0)
+\SV
+// SPDX-License-Identifier: ISC
+`default_nettype none
+module serv_immdec
+  #(parameter SHARED_RFADDR_IMM_REGS = 1,
+    parameter W = 1)
+  (
+   input wire              i_clk,
+   //State
+   input wire              i_cnt_en,
+   input wire              i_cnt_done,
+   //Control
+   input wire [3 : 0]  i_immdec_en,
+   input wire              i_csr_imm_en,
+   input wire [3 : 0]  i_ctrl,
+   output wire [4 : 0] o_rd_addr,
+   output wire [4 : 0] o_rs1_addr,
+   output wire [4 : 0] o_rs2_addr,
+   //Data
+   output wire [W - 1 : 0] o_csr_imm,
+   output wire [W - 1 : 0] o_imm,
+   //External
+   input wire              i_wb_en,
+   input wire [31 : 7] i_wb_rdt);
+
+   // TL-Verilog global clock mapping
+   wire clk;
+   assign clk = i_clk;
+
+\TLV
+   |default
+      @0
+         // Connect Verilog inputs:
+         $csr_imm_en = *i_csr_imm_en;
+         $cnt_en = *i_cnt_en;
+         $cnt_done = *i_cnt_done;
+         $ctrl[3:0] = *i_ctrl;
+         $wb_en = *i_wb_en;
+         $wb_rdt[31:7] = *i_wb_rdt;
+
+         // if (W == 1)
+         m5_if_eq_block(m5_cond_w_1, 1, ['
+         $signbit = $imm31 & ! $csr_imm_en;
+         // Connect immdec_en input only when needed in shared case
+         m5_if_eq_block(m5_cond_shared, 1, ['
+         $immdec_en[3:0] = *i_immdec_en;
+         '])
+         // W=1 signals
+         <<1$$imm31 = $wb_en ? $wb_rdt[31] : $imm31;
+         <<1$$imm19_b12_b20[8:0] =
+            // if (SHARED_RFADDR_IMM_REGS)
+            m5_if_eq_block(m5_cond_shared, 1, ['
+            ($wb_en) ? {$wb_rdt[19:12], $wb_rdt[20]} :
+            ($cnt_en & $immdec_en[1]) ? {$ctrl[3] ? $signbit : $imm24_b20[0], $imm19_b12_b20[8:1]} :
+            $imm19_b12_b20;
+            '], ['
+            $cnt_en ? {$ctrl[3] ? $signbit : $imm24_b20[0], $imm19_b12_b20[8:1]} :
+            $wb_en  ? {$wb_rdt[19:12], $wb_rdt[20]} :
+            $imm19_b12_b20;
+            '])
+         <<1$$imm7 =
+            // if (SHARED_RFADDR_IMM_REGS)
+            m5_if_eq_block(m5_cond_shared, 1, ['
+            ($wb_en) ? $wb_rdt[7] :
+            ($cnt_en) ? $signbit :
+            $imm7;
+            '], ['
+            $cnt_en ? $signbit :
+            $wb_en  ? $wb_rdt[7] :
+            $imm7;
+            '])
+         <<1$$imm30_b25[5:0] =
+            // if (SHARED_RFADDR_IMM_REGS)
+            m5_if_eq_block(m5_cond_shared, 1, ['
+            ($wb_en) ? $wb_rdt[30:25] :
+            ($cnt_en & $immdec_en[3]) ? {$ctrl[2] ? $imm7 : $ctrl[1] ? $signbit : $imm19_b12_b20[0], $imm30_b25[5:1]} :
+            $imm30_b25;
+            '], ['
+            $cnt_en ? {$ctrl[2] ? $imm7 : $ctrl[1] ? $signbit : $imm19_b12_b20[0], $imm30_b25[5:1]} :
+            $wb_en  ? $wb_rdt[30:25] :
+            $imm30_b25;
+            '])
+         <<1$$imm24_b20[4:0] =
+            // if (SHARED_RFADDR_IMM_REGS)
+            m5_if_eq_block(m5_cond_shared, 1, ['
+            ($wb_en) ? $wb_rdt[24:20] :
+            ($cnt_en & $immdec_en[2]) ? {$imm30_b25[0], $imm24_b20[4:1]} :
+            $imm24_b20;
+            '], ['
+            $cnt_en ? {$imm30_b25[0], $imm24_b20[4:1]} :
+            $wb_en  ? $wb_rdt[24:20] :
+            $imm24_b20;
+            '])
+         <<1$$imm11_b7[4:0] =
+            // if (SHARED_RFADDR_IMM_REGS)
+            m5_if_eq_block(m5_cond_shared, 1, ['
+            ($wb_en) ? $wb_rdt[11:7] :
+            ($cnt_en & $immdec_en[0]) ? {$imm30_b25[0], $imm11_b7[4:1]} :
+            $imm11_b7;
+            '], ['
+            $cnt_en ? {$imm30_b25[0], $imm11_b7[4:1]} :
+            $wb_en  ? $wb_rdt[11:7] :
+            $imm11_b7;
+            '])
+         // if (!SHARED_RFADDR_IMM_REGS)
+         m5_if_eq_block(m5_cond_shared, 0, ['
+         <<1$$rd_addr[4:0]  = $wb_en ? $wb_rdt[11:7]  : $rd_addr;
+         <<1$$rs1_addr[4:0] = $wb_en ? $wb_rdt[19:15] : $rs1_addr;
+         <<1$$rs2_addr[4:0] = $wb_en ? $wb_rdt[24:20] : $rs2_addr;
+         '])
+         // Per-config output values:
+         $csr_imm = $imm19_b12_b20[4];
+         $imm_out = $cnt_done ? $signbit : $ctrl[0] ? $imm11_b7[0] : $imm24_b20[0];
+         m5_if_eq_block(m5_cond_shared, 1, ['
+         $rd_addr_out[4:0]  = $imm11_b7;
+         $rs1_addr_out[4:0] = $imm19_b12_b20[8:4];
+         $rs2_addr_out[4:0] = $imm24_b20;
+         '], ['
+         $rd_addr_out[4:0]  = $rd_addr;
+         $rs1_addr_out[4:0] = $rs1_addr;
+         $rs2_addr_out[4:0] = $rs2_addr;
+         '])
+         '], ['
+         // W=4 signals
+         $signbit = $ii31 & ! $csr_imm_en;
+         <<1$$rd_addr[4:0]  = $wb_en ? $wb_rdt[11:7]  : $rd_addr;
+         <<1$$rs1_addr[4:0] = $wb_en ? $wb_rdt[19:15] : $rs1_addr;
+         <<1$$rs2_addr[4:0] = $wb_en ? $wb_rdt[24:20] : $rs2_addr;
+         <<1$$ii31  = $wb_en ? $wb_rdt[31] : $ii31;
+         <<1$$ii30  = $cnt_en ? (($ctrl[1] | $ctrl[2]) ? $signbit : $ii14) : $wb_en ? $wb_rdt[30] : $ii30;
+         <<1$$ii29  = $cnt_en ? (($ctrl[1] | $ctrl[2]) ? $signbit : $ii13) : $wb_en ? $wb_rdt[29] : $ii29;
+         <<1$$ii28  = $cnt_en ? (($ctrl[1] | $ctrl[2]) ? $signbit : $ii12) : $wb_en ? $wb_rdt[28] : $ii28;
+         <<1$$ii27  = $cnt_en ? ($ctrl[2] ? $ii7 : $ctrl[1] ? $signbit : $ii20) : $wb_en ? $wb_rdt[27] : $ii27;
+         <<1$$ii26  = $cnt_en ? $ii30 : $wb_en ? $wb_rdt[26] : $ii26;
+         <<1$$ii25  = $cnt_en ? $ii29 : $wb_en ? $wb_rdt[25] : $ii25;
+         <<1$$ii24  = $cnt_en ? $ii28 : $wb_en ? $wb_rdt[24] : $ii24;
+         <<1$$ii23  = $cnt_en ? $ii27 : $wb_en ? $wb_rdt[23] : $ii23;
+         <<1$$ii22  = $cnt_en ? $ii26 : $wb_en ? $wb_rdt[22] : $ii22;
+         <<1$$ii21  = $cnt_en ? $ii25 : $wb_en ? $wb_rdt[21] : $ii21;
+         <<1$$ii20  = $cnt_en ? $ii15 : $wb_en ? $wb_rdt[20] : $ii20;
+         <<1$$ii19  = $cnt_en ? ($ctrl[3] ? $signbit : $ii23) : $wb_en ? $wb_rdt[19] : $ii19;
+         <<1$$ii18  = $cnt_en ? ($ctrl[3] ? $signbit : $ii22) : $wb_en ? $wb_rdt[18] : $ii18;
+         <<1$$ii17  = $cnt_en ? ($ctrl[3] ? $signbit : $ii21) : $wb_en ? $wb_rdt[17] : $ii17;
+         <<1$$ii16  = $cnt_en ? ($ctrl[3] ? $signbit : $ii20_b2) : $wb_en ? $wb_rdt[16] : $ii16;
+         <<1$$ii15  = $cnt_en ? $ii19 : $wb_en ? $wb_rdt[15] : $ii15;
+         <<1$$ii14  = $cnt_en ? $ii18 : $wb_en ? $wb_rdt[14] : $ii14;
+         <<1$$ii13  = $cnt_en ? $ii17 : $wb_en ? $wb_rdt[13] : $ii13;
+         <<1$$ii12  = $cnt_en ? $ii16 : $wb_en ? $wb_rdt[12] : $ii12;
+         <<1$$ii11  = $cnt_en ? $ii28 : $wb_en ? $wb_rdt[11] : $ii11;
+         <<1$$ii10  = $cnt_en ? $ii27 : $wb_en ? $wb_rdt[10] : $ii10;
+         <<1$$ii9   = $cnt_en ? $ii26 : $wb_en ? $wb_rdt[9]  : $ii9;
+         <<1$$ii8   = $cnt_en ? $ii25 : $wb_en ? $wb_rdt[8]  : $ii8;
+         <<1$$ii7   = $cnt_en ? $signbit : $wb_en ? $wb_rdt[7] : $ii7;
+         <<1$$ii7_b2  = $cnt_en ? $ii11 : $wb_en ? $wb_rdt[7] : $ii7_b2;
+         <<1$$ii20_b2 = $cnt_en ? $ii24 : $wb_en ? $wb_rdt[20] : $ii20_b2;
+         // Per-config output values:
+         $csr_imm[3:0] = {$ii18, $ii17, $ii16, $ii15};
+         $imm_out[3:0] = {($cnt_done ? $signbit : ($ctrl[0] ? $ii10 : $ii23)),
+                          $ctrl[0] ? $ii9  : $ii22,
+                          $ctrl[0] ? $ii8  : $ii21,
+                          $ctrl[0] ? $ii7_b2 : $ii20_b2};
+         $rd_addr_out[4:0]  = $rd_addr;
+         $rs1_addr_out[4:0] = $rs1_addr;
+         $rs2_addr_out[4:0] = $rs2_addr;
+         '])
+
+         // Connect Verilog outputs:
+         *o_rd_addr = $rd_addr_out;
+         *o_rs1_addr = $rs1_addr_out;
+         *o_rs2_addr = $rs2_addr_out;
+         *o_csr_imm = $csr_imm;
+         *o_imm = $imm_out;
+\SV
+endmodule

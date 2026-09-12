@@ -1,0 +1,9 @@
+#!/bin/bash
+# Shim: fev.sh hardcodes `timeout 120s` calibrated for a faster machine.
+# Scale that budget to 600s here; pass everything else through.
+args=()
+for a in "$@"; do
+  [[ "$a" == "120s" ]] && a="600s"
+  args+=("$a")
+done
+exec /usr/bin/timeout "${args[@]}"

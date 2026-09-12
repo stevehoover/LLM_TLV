@@ -1,0 +1,48 @@
+User guidance for "Non-vector Signals", from diagnosing your failed attempts
+and from this module's previously completed conversion (the lines below are
+byte-exact from its verified checkpoint for this exact conversion).
+
+WHY YOUR ATTEMPTS FAILED: you wrote declaration lines like
+   **logic [8:0] $imm19_b12_b20;
+at TLV scope. That is not TL-Verilog: pipesignals are NEVER declared, they
+exist by being assigned. SandPiper rejects those lines with
+RECOV_ERROR (PARSE-ASSIGN) "couldn't find '='", which is exactly what your
+FEV runs showed. Do not invent declaration syntax; there is none to write.
+
+VERIFIED PATTERN. To convert a non-vector (or vector) reg to a pipesignal,
+replace its always-block update with ONE next-value assignment at TLV scope
+using the <<1 retiming form, and delete the reg declaration. Byte-exact lines
+from the previous conversion of this module (W=4 arm registers):
+
+         <<1$ii7 = *i_cnt_en ? $signbit : *i_wb_en ? *i_wb_rdt[7] : $ii7;
+         <<1$ii9 = *i_cnt_en ? $ii26 : *i_wb_en ? *i_wb_rdt[9] : $ii9;
+         <<1$ii19 = *i_cnt_en ? (*i_ctrl[3] ? $signbit : $ii23) : *i_wb_en ? *i_wb_rdt[19] : $ii19;
+
+Reading the rules off those lines:
+  - LHS `<<1$name` means "the value of $name next cycle": this IS the flop.
+  - RHS: module inputs are read as `*i_name`; other ALREADY-CONVERTED signals
+    as `$name`; NOT-yet-converted regs as `*name`; the hold term is `$name`
+    (current value), which is what makes it a self-holding register.
+  - No declaration line anywhere. The assignment brings the signal into being.
+  - Place each assignment at TLV scope inside the SAME m5 arm that owned the
+    reg, before that arm's \SV_plus block.
+
+In the same attempt, for each converted register:
+  - Delete its `reg` declaration and its assignment from the always block
+    inside \SV_plus.
+  - Change remaining reads of it inside \SV_plus to `$name` (reads of a
+    pipesignal from \SV_plus are legal, e.g. `assign o_csr_imm = {$ii18,
+    $ii17, $ii16, $ii15};` is from the verified run).
+  - Add to fev.eqy's [match serv_immdec] section:
+        gold-match <reg_name> |default<>0$<name>
+    (gold side: the reg's name as it exists in feved.sv; gate side: the TLV
+    pipesignal reference, which fev.sh maps to the generated Verilog name).
+  - Update the same signal's gate side in fev_full.eqy,
+    fev_full_W_1_SHARED_0.eqy and fev_full_W_4.eqy to |default<>0$<name>,
+    keeping their gold side (gen_immdec_w_eq_*.<reg_name>) unchanged.
+
+Convert a FEW registers per fev.sh pass, not all at once; the previous
+conversion did them in small batches across several checkpoints. Do not
+resubmit an unchanged file; the reviewer rejects it. If a genuine blocker
+exists, name the exact construct and the exact tool error in the
+justification, vague "tool limitation" claims are rejected.

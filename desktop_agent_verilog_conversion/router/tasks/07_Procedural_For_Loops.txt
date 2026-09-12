@@ -1,0 +1,27 @@
+Summary: Transform procedural `for` loops with inter-iteration dependencies to avoid reassignments.
+
+Some procedural loops might update the same signal in each iteration, based on its value in the previous iteration. (These are often "reduction" operations.) TL-Verilog discourages procedural assignments. The pattern we'll follow for translating these is to create an array signal to hold the intermediate results of each iteration, assigning a unique entry in each iteration. For example:
+
+```verilog
+logic [31:0] sum, addend[3:0];
+always_comb begin
+   sum = 0;
+   for (integer i = 0; i < 4; i++): ii
+      sum = sum + addend[i];
+end
+```
+
+can be refactored to use explicit partial sums, as:
+
+```verilog
+logic [31:0] sum, addend[3:0], partial[3:0];
+always_comb begin
+   for (integer i = 0; i < 4; i++): ii
+      partial[i] = (i == 0) ? 0 : partial[i-1] + addend[i];
+   sum = partial[3];
+end
+```
+
+Some tools object to `partial[i-1]`, which can index `partial[-1]`, which doesn't exist. The value is unused, but, to make these tools happy, it may be necessary to use `partial[(i+4-1)%4]` to keep the index in range.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

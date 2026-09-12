@@ -1,0 +1,5 @@
+Summary: Ensure that the current code is organized and commented consistently with the prepared code.
+
+Compare the structure and commenting of `prepared.sv` with that of `wip.tlv`. Make any adjustments necessary to reasonably align the structure and commenting of `wip.tlv` with that of `prepared.sv`. The code may have been substantially reordered during conversion, and the order should be reestablished. Preserve comments like `// if (cond)` above replicated scopes, as these are used by subsequent tasks. Balance the alignment goal with the goal of quality, favoring alignment where there is not a significant quality concern. A slight increase in commenting may be reasonable, where there is a particular need. No comments should be lost or modified without a very clear reason.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

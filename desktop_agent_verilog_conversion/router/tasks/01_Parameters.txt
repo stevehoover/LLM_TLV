@@ -1,0 +1,9 @@
+If the module has any parameters or uses any tick-defines, additional FEV configurations can be established for alternate parameter sets. `fev.sh` will test each parameter set, each defined by a `fev_full_*.eqy` file.
+
+Examine the use of module parameters and tick-define parameters in `prepared.sv` to determine a set of parameter sets to adequately test future refactoring steps. Make sure key generate scenarios are covered. Parameters should be chosen that impact elaboration and logic behavior. This includes generate `if` conditions, for example. Generate `for`s should be tested with no iterations, one iteration, and multiple iterations if possible. Avoid parameters that wouldn't be legal in the original code. It may be necessary to inspect project documentation or the broader code base to determine this. Avoid large parameter values to avoid large FEV runs. Keep the set (of sets) minimal, but sufficient.
+
+Create a corresponding `fev_full_*.eqy`, e.g. `fev_full_WIDTH_4_BYPASS_1.eqy`, for each parameter set. Initialize each as a copy of `fev_full.eqy`. For module parameters, uncomment the line `#chparam -set ...` and update it with one `-set <PARAMETER_NAME> <VALUE>` for each overridden parameter. For tick-defines, use `-Dname=value` on both `read_verilog` lines. Modify the match list if the parameters affect which signals will be elaborated.
+
+Describe the parameter sets in `tracker.md`.
+
+If any modifications were made, run `fev.sh`. Since no changes were made to `wip.tlv`, failure points to an issue with `fev_full_*.eqy`. Compare thees versus `fev_full.eqy` to be sure you initialized them properly and also scrutinize the match lists. There could also be failures if you chose a configuration that is not supported in the original code.

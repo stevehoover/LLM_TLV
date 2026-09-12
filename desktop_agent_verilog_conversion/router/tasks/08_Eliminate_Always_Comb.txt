@@ -1,0 +1,5 @@
+Summary: Transform `always_comb` to `assign`.
+
+Transform all assignments in `always_comb` and non-edge-triggered `always` blocks to `assign` statements. All `always_comb` blocks should be eliminated.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

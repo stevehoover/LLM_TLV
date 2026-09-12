@@ -1,0 +1,40 @@
+Summary: Update the Verilog signals to conform to TL-Verilog naming convensions.
+
+In preparation for converting Verilog signals to TL-Verilog pipesignals, rename Verilog signals to names that will be legal pipesignal names. (We will not use TLV state signals, only pipesignals.) Pipesignal names are limited to using lowercase ASCII letters, digits, and underscores. They are comprised of "tokens", separated by `_`. Each token is a string of 1 or more letters, followed by zero or more digits. The name must begin with at least two letters.
+
+So:
+
+- Rule 1: lower-case ASCII word characters only
+- Rule 2: tokens (separated by `_`) must be one or more letters optionally followed by any number of digits
+- Rule 3: the first two characters in the name must be letters
+
+Example name mappings:
+
+- `CSR` -> `csr`  # Rule 1
+- `sig_1` -> `sig1`  # Rule 2
+- `wide2narrow` -> `wide_to_narrow`  # Rule 2
+- `a` -> `aa`  # Rule 3
+- `x_y` -> `xx_y`  # Rule 3
+- `product_1_NRE` -> `product1_nre`  # Rule 1 & Rule 2
+- `Opcode_0b01011` -> `opcode01011`  # Rule 1 & Rule 2
+- `is_VERSION_1_0` -> `is_version1_dot0`  # Rule 1 & Rule 2
+- `regA_EXE_2` -> `reg_a_exe2`  # Rule 1 & Rule 2
+- `no_change` -> `no_change`
+- `this1_is_o_k` -> `this1_is_o_k`
+
+First, convert internal signals (not module interface signals). Conveniently, these signals are listed in the `[match ...]` section of `fev_full.eqy` (with one-to-one mappings).
+
+A script, `./scripts/rename_sigs.py` is provided to assist in determining violations and in applying name changes from `fev_full.eqy` to `wip.tlv`. First, run `./scripts/rename_sigs.py -n -a`. This reports all non-compliant gate signal names in `fev_full.eqy`, and other potential issues.
+
+Update `fev_full.eqy` to correct all issues, e.g.:
+
+```
+[match <module-name>]
+x_len xx_len
+```
+
+Then run `rename_sigs.py` to apply the new names. If issues are reported, correct and repeat. Run `rename_sigs.py -h` for full usage.
+
+Apply these same naming conventions to generate `if`/`else` and `for` loop names as well. You can use `rename_sigs.py -t name1 name2 ...` to test these names. Do not change `clk`. This name is required by SandPiper for the global clock.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

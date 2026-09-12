@@ -1,0 +1,5 @@
+Summary: Name each generate `for` loop.
+
+Give each generate `for` loop a short name, and add `begin`/`end` if absent. The name may be based on the name of a `for` loop's `genvar`, or on the meaning of the block. Use lower-case.
+
+If any changes were made, pass `./scripts/fev.sh` before continuing.

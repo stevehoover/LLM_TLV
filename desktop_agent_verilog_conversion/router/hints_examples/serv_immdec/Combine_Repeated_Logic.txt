@@ -1,0 +1,69 @@
+M5 syntax reference for factoring repeated TL-Verilog statements. Nothing in
+the conversion docs covers macro definition, so the essentials are here.
+
+DOLLAR SIGNS. Inside an M5 macro body, `$` followed by a digit is a
+parameter reference (`$1`, `$2`, ...). `$` followed by a letter is ordinary
+text and passes through unchanged, so a pipesignal such as `$wb_en` needs
+no escaping at all. Never write `\$`: the backslash is kept in the output
+and SandPiper then fails with PARSE-IDENT on that line.
+
+OPTION A, a TLV macro (preferred; this is what the "TLV Macro" task already
+used for the module body). Define it at file scope, before the module, with
+parameters that keep their sigils and start with an underscore:
+
+\TLV imm_reg($_q, $_src, _bit)
+   <<1$_q = ($wb_en | $cnt_en) ? ($cnt_en ? $_src : $wb_rdt[_bit]) : $_q;
+
+Instantiate it inside the scope where the statement used to be, one call
+per former statement:
+
+   |default
+      @0
+         m5+imm_reg($ii10, $ii27, 10)
+         m5+imm_reg($ii23, $ii27, 23)
+
+The body lines are inserted at the indentation of the `m5+` call. An
+argument may be any expression, e.g. `m5+imm_reg($ii27, ($ctrl[2] ? $ii7 : $ctrl[1] ? $signbit : $ii20), 27)`;
+wrap an argument containing a comma in `['...']`. A registered pipesignal
+with a bit range is passed with its range, e.g. `m5+imm_reg($imm11_b7[4:0], ...)`,
+and the same `$_q` text then serves as both the assigned signal and the
+hold value; SandPiper accepts `$sig[4:0]` on the right-hand side.
+
+Share one macro across configuration branches when only the operand
+expressions differ: the W=1 separate-register arm and the W=4 arm both
+use "count has priority over write-back", so one macro taking the
+write-back value and the shift-in value as arguments covers both. The
+shared-register arm differs in priority and in a per-field enable, so it
+gets its own macro. Verified passing full multi-config FEV on this module:
+
+\TLV imm_wb_pri($_q, _en, _wbval, _shval)
+   <<1$_q = ($wb_en | _en) ? ($wb_en ? _wbval : _shval) : $_q;
+\TLV imm_cnt_pri($_q, _wbval, _shval)
+   <<1$_q = ($wb_en | $cnt_en) ? ($cnt_en ? _shval : _wbval) : $_q;
+\TLV imm_wb_only($_q, _wbval)
+   <<1$_q = $wb_en ? _wbval : $_q;
+
+OPTION B, a plain text macro, when the repeated thing is not a whole TLV
+statement:
+
+\m5
+   macro(imm_reg, ['<<1$1 = ($wb_en | $cnt_en) ? ($cnt_en ? $2 : $wb_rdt[$3]) : $1;'])
+
+called as `m5_imm_reg($ii10, $ii27, 10)` on its own line in TLV context.
+The body is wrapped in `['` and `']` quotes so it is stored, not evaluated,
+at definition time.
+
+LOOPS, if you want a table instead of one call per line:
+`m5_repeat(N, [ ... ])` evaluates a code block N times with `m5_LoopCnt`
+running 0..N-1, and `m5_for(item, ['a, b, c, '], [ ... ])` sets `m5_item`
+to each list element. Code blocks use `[` at the end of a line and `]` on
+its own line; statements inside are macro calls written with `~` instead of
+`m5_`. These are more error prone than Option A; get Option A passing FEV
+first and only then consider a loop.
+
+These macros live inside `m5_if_eq_block(...)` quoted branches without any
+change: the branch that is selected is elaborated normally, including its
+`m5+` calls.
+
+Keep the configuration structure exactly as it is. FEV compares every
+configuration, so a macro that is right for W=4 but wrong for W=1 fails.

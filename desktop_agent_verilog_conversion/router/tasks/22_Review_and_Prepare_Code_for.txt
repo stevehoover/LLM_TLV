@@ -1,0 +1,16 @@
+Summary: Review the code and improve its quality for final handoff to the user.
+
+To wrap up, compare your final code against `prepared.sv`. Compare the organization and commenting of you code versus `prepared.sv`.
+
+Refactor your code such that:
+
+- logic is expressed in optimal ways for readability and minimal redundancy
+- all comments are appropriately preserved from `prepared.sv`, including the license header if present
+- a note, such as "Converted to TL-Verilog by Claude.", is added (after the license, if present)
+- the code is well organized and its structure closely aligns with the original
+- the code follows best practices and has high quality
+- whitespace is used appropriately for best readability
+
+Give `fev_full.eqy` a final review, ensuring that the configuration that is used will result in adequate FEV coverage. Ensure that other fev_full_*.eqy also follow a sound approach.
+
+If any changes are made, rerun `fev.sh`.

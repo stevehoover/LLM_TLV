@@ -1,0 +1,25 @@
+Ground truth from a previously completed conversion of THIS module (it took
+that run 83 checkpoints to find this; do not rediscover it):
+
+1. Convert each guarded nonblocking assignment ONE AT A TIME using the
+   self-hold pattern, keeping the register itself as the else-arm:
+   BEFORE:
+     if (i_wb_en | (i_cnt_en & i_immdec_en[2]))
+       imm_b24_b20 <= i_wb_en ? i_wb_rdt[24:20] : {imm_b30_b25[0], imm_b24_b20[4:1]};
+   AFTER (verified equivalent):
+     imm_b24_b20 <= (i_wb_en | (i_cnt_en & i_immdec_en[2])) ?
+                   (i_wb_en ? i_wb_rdt[24:20] : {imm_b30_b25[0], imm_b24_b20[4:1]}) :
+                   imm_b24_b20;
+   Never drop the trailing self-hold arm and never merge or simplify the
+   enable conditions.
+2. This module has parameter-dependent generate branches
+   (SHARED_RFADDR_IMM_REGS selects different blocks). Convert inside EACH
+   branch separately and identically; do not move logic across branches.
+   That is why earlier attempts passed default-parameter FEV but failed the
+   W_1_SHARED_0 configuration.
+3. Where two separate if blocks assign the same registers under different
+   enables, keep them as separate guarded assignments converted in place;
+   do not combine them into one expression.
+4. Convert a FEW assignments per attempt. A small verified step is progress;
+   the checker runs after every attempt.
+5. Do not modify any fev configuration files.

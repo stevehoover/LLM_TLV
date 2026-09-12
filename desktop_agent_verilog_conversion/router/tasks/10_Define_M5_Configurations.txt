@@ -1,0 +1,90 @@
+Summary: Define M5 parameters to affect TL-Verilog code generation.
+
+If the module has no generate `if` blocks (noting that the `generate` keyword is optional in SystemVerilog) and no tick-ifdef/ifndef, you may skip this task and the next.
+
+Verilog module parameterization and tick-defines are elaborated prior to processing other Verilog constructs. This enables conditional elaboration within the model. While TL-Verilog code can contain module parameters and tick-defines, these are simply passed along to be processed by Verilog tools. SandPiper cannot use them to conditionally generate TL-Verilog code. For this purpose, SandPiper uses M5 macro preprocessing. Thus, to prepare for conditioned assignments to be converted to TL-Verilog, we must convert the conditioning from generate `if`/`else` and tick-ifdef/ifndef to M5.
+
+This refactoring step will introduce sufficient M5 parameterization to construct the TL-Verilog code correctly for different parameter scenarios. M5 parameters will correspond to the elaboration conditions in the current `wip.tlv` code. A set of configurations will be defined covering all legal parameter scenarios. SandPiper will be run for each of these configurations, producing a unique Verilog module for each.
+
+A prior task should have captured a list of remaining conditions in `tracker.md`. Also analyze `wip.tlv`, to definitively identify the conditions to parameterize with M5 and a complete flat list of legal code configurations. If more than eight configurations are necessary, wrap up your efforts, and seek user guidance.
+
+Update `config.json` to include a flat list of legal configurations and corresponding M5 boolean (0/1) condition parameters. (If none are needed, skip this task.) For example, Verilog containing:
+
+```verilog
+if (WIDTH=32) begin
+   ...
+end
+...
+if (WIDTH=64) begin
+   ...
+end
+```
+
+Might be parameterized as:
+
+```json
+{
+  "top": "my_dut",
+  "M5_configs": {
+    "WIDTH_32": "--m5def cond_width_32=1 --m5def cond_width_64=0",
+    "WIDTH_64": "--m5def cond_width_32=0 --m5def cond_width_64=1",
+    "WIDTH_OTHER": "--m5def cond_width_32=0 --m5def cond_width_64=0"
+  }
+}
+```
+
+No case is needed for `--m5def cond_width_32=1 --m5def cond_width_64=1` since both conditions are determined from `WIDTH` and are inherently mutually exclusive. If it can be determined that 32 and 64 are the only legal values for `WIDTH`, the `WIDTH_OTHER` case can be dropped and `width_32` can be used in place of `width_64` (with opposite polarity), so `width_64` can also be dropped.
+
+Here's an example with nested conditions:
+
+```verilog
+`ifdef ASIC
+...
+`ifndef GATING
+...
+`else
+...
+`endif
+`endif
+```
+
+```json
+{
+  "top": "my_dut",
+  "M5_configs": {
+    "NOT_ASIC": "--m5def cond_asic=0",
+    "ASIC_GATING": "--m5def cond_asic=1 --m5def cond_gating=1",
+    "ASIC_NO_GATING": "--m5def cond_asic=1 --m5def cond_gating=0"
+  }
+}
+```
+
+If both of these examples appeared together, the set of configurations would be the crossproduct. Assuming `WIDTH` can only be 32 or 64, we'd have:
+
+```json
+{
+  "top": "my_dut",
+  "M5_configs": {
+    "WIDTH_32_NOT_ASIC": "--m5def cond_width_32=1 --m5def cond_asic=0",
+    "WIDTH_32_ASIC_GATING": "--m5def cond_width_32=1 --m5def cond_asic=1 --m5def cond_gating=1",
+    "WIDTH_32_ASIC_NO_GATING": "--m5def cond_width_32=1 --m5def cond_asic=1 --m5def cond_gating=0",
+    "WIDTH_64_NOT_ASIC": "--m5def cond_width_32=1 --m5def cond_asic=0",
+    "WIDTH_64_ASIC_GATING": "--m5def cond_width_32=1 --m5def cond_asic=1 --m5def cond_gating=1",
+    "WIDTH_64_ASIC_NO_GATING": "--m5def cond_width_32=1 --m5def cond_asic=1 --m5def cond_gating=0"
+  }
+}
+```
+
+Also, identify in `config.json` which is the default configuration, corresponding to default module parameters and no tick-defines, e.g.:
+```json
+{
+   ...
+   "default_config": "WIDTH_32_NOT_ASIC"
+}
+```
+
+With `configs` added, SandPiper will run for each configuration, producing, e.g., `wip_WIDTH_32_NOT_ASIC.sv`.
+
+Update the `read_verilog` commands of all `fev_full_*.eqy` to read the correct `wip_*.sv`, corresponding to the `-D<NAME>=<VALUE>` and `chparam -set <NAME> <VALUE>` parameters. Do not update `fev.eqy` and `fev_full.eqy`. These should continue to use `wip.sv`, which will be linked to the `wip_*.sv` corresponding to `default_config`. Use `grep read_verilog fev_full_*.eqy` to be sure you didn't miss any updates.
+
+At this point, each `wip*.sv` should contain the same Verilog output as `wip.sv` did previously, but run `fev.sh` to test the flow with your configuration changes.

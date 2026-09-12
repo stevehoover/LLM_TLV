@@ -1,0 +1,88 @@
+Summary: Provide the module logic as a TLV Macro
+
+The code currently provides a Verilog module. TL-Verilog is also able to use "TLV macros" to provide and instantiate reusable components. You will restructure the code such that the module's logic is defined in a TLV macro. The module body will connect interface signals to pipesignals and instantiate the module. This way, the same file serves to provide a module or a TLV macro to instantiate the same logic.
+
+TLV macros are a simple M5-based mechanism for text substitution. Since they have no formality, there are several options as to how to structure this. Scope, such as `|default` and `@0` could be provided by the macro or by the module. You should include all scope within the macro, following the lead of the following example.
+
+For this initial file structure:
+
+```tlv
+\SV
+   // Implements...
+   module foo(input wire clk, input wire reset, input wire in[7:0], output wire out[7:0]);
+\TLV
+   |default
+      @0
+         // Connect Verilog inputs:
+         $reset = *reset;
+         $in[7:0] = *in;
+
+         // TL-Verilog logic (properly indented)
+         // ...
+         
+         // Connect Verilog outputs:
+         *out = $out;
+\SV
+   endmodule
+```
+
+First, note that this is equivalently (using lexical reentrance):
+
+```tlv
+\SV
+   // Implements...
+   module foo(input wire clk, input wire reset, input wire in[7:0], output wire out[7:0]);
+\TLV
+   |default
+      @0
+         // Connect Verilog inputs:
+         $reset = *reset;
+         $in[7:0] = *in;
+   |default
+      @0
+         // TL-Verilog logic (including any logic you were unable to migrate out of \SV_plus)
+   |default
+      @0
+         // Connect Verilog outputs:
+         *out = $out;
+\SV
+   endmodule
+```
+
+Separating the logic into a TLV macro, we get:
+
+```tlv
+// The guts of module foo.
+\TLV foo(/_top)
+   |default
+      @0
+         // TL-Verilog logic
+         // ...
+
+\SV
+   // Implements...
+   module foo(input wire clk, input wire reset, input wire in[7:0], output wire out[7:0]);
+\TLV
+   // Connect Verilog inputs:
+   |default
+      @0
+         $reset = *reset;
+         $in[7:0] = *in;
+   m5+foo(/top)
+   // Connect Verilog outputs:
+   |default
+      @0
+         *out = $out;
+\SV
+   endmodule
+```
+
+A few things worth noting:
+
+- The macro parameter `/_top` can be used in pipesignal references to reference the scope in which the macro is instantiated. It may not be needed, but should be provided regardless to abide by conventions. `/top` is passed into `/_top`, identifying the implicit top-level `/TLV` scope.
+- `m5+foo(/top)` is instantiated at the top level within the `\TLV` region. The macro argument references the scope of the instantiation, which, in this case, is the implicit `/top` scope.
+- Check to be sure you didn't lose indentation. This tends to happen sometimes. The macro body should be indented (3-spaces) beneath `/TLV ...`.
+
+It is probably easiest to tackle this in one shot, but, if you have difficulty, you can approach this incrementally, by first putting an empty macro in place, then, incrementally moving content from the `\TLV` body into the new macro. If there are M5 `m5_if_else` sections or TLV scopes, you'll have to be careful about preserving proper context. You can first split scopes in `\TLV` context, then migrate.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

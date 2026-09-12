@@ -1,0 +1,11 @@
+- Every child module instantiation from the BEFORE file is gone from the
+  AFTER file, each replaced by an m5+ macro instantiation of that child.
+- The child macro definitions are referenced by include, not pasted into
+  this file. A copied macro body appearing in the AFTER file fails this
+  task.
+- The port-connection wiring for each replaced instantiation is gone or
+  reduced to one-line pipesignal assignments only where the names differ.
+- No child macro file was edited to make the parent work; renames to avoid
+  collisions happen in the including file.
+- The module wrapper and the parent macro's own logic are otherwise
+  unchanged.

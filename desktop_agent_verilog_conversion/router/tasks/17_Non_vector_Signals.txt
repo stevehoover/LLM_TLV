@@ -1,0 +1,73 @@
+Summary: Non-vector signal types are awkward in TL-Verilog; convert these to pipesignals within `\SV_plus`.
+
+Signals with complex types (non-bit-vectors) or signed values must use Verilog-defined types (or enums). A separate statement in a `\TLV` region is necessary to declare the pipesignal's type, using a `**` prefix on the type, as illustrated below.
+
+For verilog `foo` in:
+
+```tlv
+\TLV
+   |default
+      @0
+         \SV_plus
+            typedef struct packed {
+               logic [7:0] field1;
+               logic [7:0] field2;
+            } foo_t;
+            ...
+            foo_t foo;
+            assign foo.field1 = $bar;
+            assign foo.field2 = $baz;
+```
+
+the refactoring can be:
+
+```tlv
+\SV
+   typedef struct packed {
+      logic [7:0] field1;
+      logic [7:0] field2;
+   } foo_t;
+...
+\TLV
+   |default
+      @0
+         **foo_t $foo;
+         ...
+         \SV_plus
+            assign $$foo.field1 = $bar;   // First assignment requires "$$", no range.
+            assign $foo.field2 = $baz;
+```
+
+Verilog type `foo_t` would be defined in an `\SV` region or `\SV_plus` block.
+
+Note that the multiple field assignments to `$foo` in this example will remain in an `\SV_plus` block throughout the conversions. These cannot be converted to native TLV assignments.
+
+Here's another example using `foo_t`:
+
+```tlv
+\TLV
+   **foo_t $blah;
+   ...
+   \SV_plus
+      always_ff @(posedge clk)
+         $blah <= reset ? '0 : choice ? $foo : $blah;
+```
+
+For signed signals, it is usually easier to convert them to normal pipesignals and use `\$signed(...)` where they are used instead of defining an unsigned type for them.
+
+Update the `[match ...]` section of `fev.eqy` for these name changes. The proper syntax for this has not been worked out, so see if you can do so, and report your findings to the user.
+
+After this task most if not all signals are probably converted to pipesignals. Other scenarios should be reported to the user before continuing.
+
+There should be little, if anything, remaining in `\SV_plus` context when this task is complete. Exceptions include:
+
+- instantiations of external components (other modules, functions, and Verilog macros)
+- `struct` and `union` types with separate field assignments
+- small generate `if`/`else` blocks (where each case assigns the same set of signals to values assigned by different scopes, each replicated 0 or 1 times).
+- initialization, such as `initial foo = 1'b0;` or `logic foo = 1'b0;`.
+
+If anything else remains in `\SV_plus`, see if you can figure out how to migrate it to `\TLV` context. Review task instructions to find clues. For anything you cannot migrate, describe the difficulty in `tracker.md`.
+
+For Verilog declarations contained within an M5 conditional, e.g., within a block beginning `m5_if_eq_block(m5_cond_w_1, 1, ['`, apply similar M5 conditioning to the declaration in `\TLV` context.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

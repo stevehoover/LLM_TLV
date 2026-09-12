@@ -1,0 +1,22 @@
+Summary: Avoid separate assignments for different portions of a vector signal.
+
+In Verilog, it is legal to assign different portions of a vector signal in separate assignments. This is not permitted in TL-Verilog. Likely, a combined assignment can be created by simply concatenating the expressions. If the individual assignments are complex, an intermediate signal can be introduced to hold the partial expression that is then concatenated. For example:
+
+```tlv
+logic [31:0] addr;
+assign addr[31:12] = <complex_expression>;
+assign addr[11:0] = page_addr;
+```
+
+Might become:
+
+```tlv
+logic [31:0] addr;
+logic [31:12] addr_b31_b12;
+assign addr_b31_b12 = <complex_expression>;
+assign addr = {addr_b31_b12, page_addr};
+```
+
+New intermediate signals do not need to be matched in `fev*.eqy`.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

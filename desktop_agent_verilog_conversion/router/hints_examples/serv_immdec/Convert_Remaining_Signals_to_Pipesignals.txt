@@ -1,0 +1,36 @@
+User guidance for "Convert Remaining Signals to Pipesignals", from diagnosing
+the failed attempts of both A/B runs on this exact task.
+
+The conversion mechanics are the same as the previous task: replace each reg's
+always-block update with ONE next-value assignment at TLV scope in the same m5
+arm, `<<1$name = ...` on the left, inputs as `*i_name`, converted signals as
+`$name`, unconverted regs as `*name`, hold term `$name`. No declaration lines,
+pipesignals exist by being assigned. Convert a FEW signals per pass.
+
+Both runs failed on this task for two DIFFERENT bookkeeping mistakes. Avoid
+both:
+
+MISTAKE 1 (syntax of match lines). One run wrote fev.eqy gate references as
+   gold-match imm31 |default$imm31@0
+and the harness's pipesignal mapper rejected the whole file ("Failed to map
+TLV pipesignals to Verilog in fev.eqy"). The `@0` suffix is not part of a
+pipesignal reference. The correct, previously verified form uses the <>0
+stage alignment:
+   gold-match imm31 |default<>0$imm31
+One line per converted register in fev.eqy (gold side: the reg name as it
+exists in feved.sv). Update the same signals' gate side in fev_full.eqy,
+fev_full_W_1_SHARED_0.eqy and fev_full_W_4.eqy to |default<>0$name, keeping
+their gold side (gen_immdec_w_eq_*.name) unchanged.
+
+MISTAKE 2 (leftover bare reads). The other run deleted a reg's declaration
+and update but left a read of the bare name somewhere in the remaining SV
+(another m5 arm, an assign, a concatenation). With `default_nettype none`
+that becomes an implicitly declared wire and yosys fails with
+   ERROR: Identifier `\imm31' is implicitly declared
+After converting a register, EVERY remaining reference to it in EVERY m5 arm
+must become `$name` (reads of pipesignals from \SV_plus are legal). Before
+submitting, search the whole file for the bare name to confirm none is left.
+
+Remember the m5 arms are alternative texts of the SAME module: a register you
+convert exists in more than one arm's code, and every arm that mentions it
+must be updated in the same attempt.

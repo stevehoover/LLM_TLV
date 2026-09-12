@@ -1,0 +1,58 @@
+User guidance for "Configure Using M5", verified by a manually reproduced
+fully green run on this module in this exact mid-conversion state (m5 blocks
+in place, registers still flat plain names like imm31, imm19_12_20).
+
+The failure signature you are hitting (full FEV failing partitions named
+serv_immdec.o_rs2_addr.4 / o_rs1_addr.4 / o_rd_addr.4 with basecase passing
+and induction UNKNOWN) means MATCH LINES, not logic: gold (prepared.sv) still
+has the generate scope names while your gate is flat, and without gold-match
+lines EQY cannot cut the shift registers, so induction fails spuriously.
+
+(1) fev_full.eqy [match serv_immdec] section must be exactly:
+
+gold-match gen_immdec_w_eq_1.imm31 imm31
+gold-match gen_immdec_w_eq_1.imm19_12_20 imm19_12_20
+gold-match gen_immdec_w_eq_1.imm7 imm7
+gold-match gen_immdec_w_eq_1.imm30_25 imm30_25
+gold-match gen_immdec_w_eq_1.imm24_20 imm24_20
+gold-match gen_immdec_w_eq_1.imm11_7 imm11_7
+gold-match gen_immdec_w_eq_1.signbit signbit
+
+(substitute YOUR current flat register names on the gate side if they differ)
+
+(2) fev_full_W_1_SHARED_0.eqy: same seven lines PLUS
+gold-match gen_immdec_w_eq_1.gen_separate_imm_regs.rd_addr rd_addr
+gold-match gen_immdec_w_eq_1.gen_separate_imm_regs.rs1_addr rs1_addr
+gold-match gen_immdec_w_eq_1.gen_separate_imm_regs.rs2_addr rs2_addr
+with [gate] reading wip_W_1_SHARED_0.sv and [script] first line
+chparam -set W 1 -set SHARED_RFADDR_IMM_REGS 0
+
+(3) fev_full_W_4.eqy: [gate] reads wip_W_4.sv, [script] first line
+chparam -set W 4, enable `group .*` in [collect *], and the match section is
+one line per W=4 register, old prepared scoped name -> your flat name:
+gold-match gen_immdec_w_eq_4.i7 i7
+... (i8 through i31 likewise) ...
+gold-match gen_immdec_w_eq_4.i7_2 i7_2
+gold-match gen_immdec_w_eq_4.i20_2 i20_2
+gold-match gen_immdec_w_eq_4.signbit signbit
+gold-match gen_immdec_w_eq_4.rd_addr rd_addr
+gold-match gen_immdec_w_eq_4.rs1_addr rs1_addr
+gold-match gen_immdec_w_eq_4.rs2_addr rs2_addr
+
+(4) SEMANTIC CHECK of the non-default arms, the other historical failure at
+this step. The ORIGINAL Verilog in the separate branch and the W=4 branch
+uses two sequential if blocks (`if (i_wb_en) begin ... end if (i_cnt_en)
+begin ... end`), so when both enables are 1 the i_cnt_en assignment WINS,
+and those shifts are NOT gated by i_immdec_en. If an earlier ternary
+conversion gave those arms i_wb_en-first priority or immdec_en gating
+(copying the shared arm's semantics), the non-default configs will fail FEV
+with real counterexamples on the imm shift registers. The correct ternary
+shape for those arms is:
+   reg <= i_cnt_en ? <shift value> : i_wb_en ? <writeback value> : reg;
+and in the W=4 arm additionally verify i22's shift source is i26 (a past
+conversion had it self-holding behind an i_ctrl[3] mux, which is wrong).
+Compare each arm against prepared.sv before trusting it.
+
+- Incremental fev.eqy (gold reads feved.sv) needs NO match lines for this
+  step when you rename nothing.
+- Do not change [strategy] sections. Keep `use sby` everywhere.

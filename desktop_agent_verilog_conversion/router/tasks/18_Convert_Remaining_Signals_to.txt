@@ -1,0 +1,34 @@
+Summary: Convert remaining signals to pipesignals.
+
+In this task you will convert all remaining internal (non-module-interface) Verilog signals to pipesignals. If all signals (except `clk`) have already been converted, you may skip this step.
+
+To SandPiper, an `\SV_plus` block is a single statement with zero or more assigned pipesignals and zero or more used pipesignals. SandPiper does not parse the Verilog syntax, and requires explicit syntax to identify which pipesignals are assigned by the block. One occurrence of each assigned pipesignal must identify the pipesignal as being assigned by the block by using a `$$` prefix. This occurrence must also provide the bit range of the pipesignal (unless boolean). Do not use `$$` for an initial assignment (whether using the `initial` keyword, e.g., `initial $foo = 1'b0;` or inline, e.g., `logic $foo = 1'b0;`). Other pipesignal references are interpreted as uses (including non-first assignments, and that's okay).
+
+For example:
+
+```tlv
+   \SV_plus
+      logic [WIDTH-1:0] cnt;
+      if (WIDTH > 1)
+         always_ff @(posedge clk)
+            cnt <= 0;
+      else
+         always_ff @(posedge clk)
+            cnt <= reset ? 0 : cnt + 1;
+```
+
+becomes:
+
+```tlv
+   \SV_plus
+      if (WIDTH > 1)
+         always_ff @(posedge clk)
+            $$cnt[WIDTH-1:0] <= 0;
+      else
+         always_ff @(posedge clk)
+            $cnt <= reset ? 0 : $cnt + 1;
+```
+
+Signals assigned by an instantiated module, function, or macro are handle the same. (They are given a `$$` prefix and a range expression if non-boolean.) It may not be syntactically clear which signal arguments are inputs vs. outputs, so further investigation may be necessary for these.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

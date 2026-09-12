@@ -1,0 +1,122 @@
+Summary: Convert assignments in loops to TL-Verilog.
+
+For this (very complex) task, it is important to also be familiar with the instructions already completed for the prior task, "Simple Signal Assignments to TLV Pipesignal Assignments". It would be good to read or reread them now, then reread this task.
+
+In this task, you will translate `for` loops to TLV scopes and convert the assignments within the for loop to TLV assignments within the new scopes.
+
+Verilog has generate `for` loops and procedural `for` loops (within an `always` block). They assign signals that may be declared as arrays outside the loop and reference within the loop with an array index (often the loop index). Or signals may be declared within a generate loop and naturally replicated by that loop. Any of these scenarios is coded the same in TL-Verilog. The pipesignal will be assigned in (and scoped to) a replicated scope, e.g., `/loop[upper:lower]`. Upper and lower bounds must be Verilog expressions that are constant at Verilog elaboration time.
+
+For this code:
+
+```tlv
+   |default
+      @0
+         \SV_plus
+            logic [7:0] foo [3:0], bar;
+            genvar i;
+            for (i = 0; i < 4; i++) begin: ii
+               assign foo[i] = bar + i;
+            end
+```
+
+the `for` loop and it's assignment become:
+
+```tlv
+\TLV
+   |default
+      @0
+         /ii[3:0]
+            $foo[7:0] = bar + i;
+         \SV_plus
+            logic [7:0] bar;
+```
+
+After converting the assignment, all references to the new pipesignal must be updated. This includes ones in the `\SV_plus` block as well as ones in TLV-style assignments.
+
+All pipesignal references within the `\SV_plus` block are relative to the scope of the `\SV_plus` block (so `|default@0`). An updated reference might need to be, e.g. `/loop[i]$foo`, referencing into the new replicated TLV scope, indexed by a Verilog expression. Continuing with the above example, a reference to `foo` in:
+
+```
+         \SV_plus
+            assign last = foo[3];
+```
+
+would become:
+
+```
+         \SV_plus
+            assign last = /ii[3]$foo;
+```
+
+References to `foo` from TLV assignments would similarly reference through this scope. TLV assignments might be in a scope of their own. In this case, the new TLV reference must begin with `|default`, a common ancestor scope, so, e.g., `|default/ii[x]$foo`. So,
+
+The right-hand side of the new assignment needs consideration as well. The new assignment has different scope in TLV as well as in Verilog. Right-hand-side references to other signals and pipesignals must be updated to reference through proper TLV or Verilog scope. For example, the refactored `valid`/`$valid` assignment below references a pipesignal and a Verilog signal:
+
+```
+\TLV
+   |default
+      @0
+         /elsewhere
+            $valid = ...;
+         /core[NUM_CORES-1:0]
+            // NEW:
+            $valid = |default/elsewhere$valid || | core[#core].disabled;
+         \SV_plus
+            for (x = 0; x < 8; x++) begin: core
+               logic disabled;
+               // OLD:
+               //valid = /elsewhere$valid || | disabled;
+               assign disabled = ...;
+            end
+```
+
+`|default/elsewhere$valid` begins with the common ancestor scope `|default`, and `core[#core].disabled` references into the Verilog scope. `#core` is a TL-Verilog mechanism to access the scope index of `/core` (within `/core`).
+
+Note a current limitation of SandPiper. The scope (`/core`) must be defined prior to any references to the scope, thus, something like the following might be necessary:
+
+```
+\TLV
+   |default
+      @0
+         /core[NUM_CORES-1:0]   // define
+         /elsewhere
+            $valid = /core[0]$something;
+         /core[*]    // "[*]" uses range defined above
+            // NEW:
+            $valid = |default/elsewhere$valid || | core.disabled;
+```
+
+You are likely to see ternary expressions in the loop bounds. Note that, when using these in the scope range, the `:` from the ternary expression must not be interpreted as a range separator and must be escaped as `\:`. For example:
+
+```
+   |default
+      @0
+         \SV_plus
+            genvar gen_n_gt1;
+            logic foo;
+            for (gen_n_gt1 = N <= 1 ? 1 : 0; gen_n_gt1 < 1; gen_n_gt1++) begin: nn_gt1
+               foo = $bar;
+            end
+```
+
+Becomes:
+
+```
+   |default
+      @0
+         /nn_gt1[0 : N <= 1 ? 1 \: 0]  // <-- escaped ":"
+            $foo = |default$bar;
+```
+
+Update match statements in `fev.eqy` accordingly, e.g.:
+
+```
+gold-match ii[*].foo |default/ii[*]<>0$foo
+```
+
+Whether originally blocking or non-blocking, the match statements will use `<>0`.
+
+You may notice generate `for` loops that evaluate 0 or 1 times (converted in a prior task from generate `if` blocks). These are to be included for refactoring in this task. Zero-replica scopes in TL-Verilog aren't really supported, but they will work, and we'll eliminate them soon. They may result in unused Verilog declarations, but these shouldn't cause any harm.
+
+This is a complex task, so tackle each signal independently until successful patterns are clear.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

@@ -1,0 +1,65 @@
+Summary: Isolate the transition from Verilog to (timing-abstract) TL-Verilog and back.
+
+Module input and output signals (as well as any other signals that you were unable to translate to pipesignals) may currently be used throughout the logic. Consolidate the connections of SV signals to and from TLV pipesignals, and eliminate the use of Verilog signals from logic expressions. New intermediate pipesignals can be defined and assigned to/from the corresponding SV signals.
+
+Assign new input pipesignals at the top of the first (and probably only) `\TLV` region (part 1). Assign Verilog output signals at the end of the last (and probably only) `\TLV` region (part 2). Add an appropriate comment line above each of these sections. The input and output assignments should simply connect signals to/from pipesignals. They should not include logic. Replace all previous direct uses of the i/o signals with the pipesignals.
+
+Use a `*` prefix before Verilog signal names.
+
+So, for example, this refactoring step should result in a structure like:
+
+```tlv
+\SV
+   module foo(input wire clk, input wire reset, input wire in[7:0], output wire out[7:0]);
+\TLV
+   |default
+      @0
+         // Connect Verilog inputs:
+         $reset = *reset;
+         $in[7:0] = *in;
+
+         ...
+         
+         // Connect Verilog outputs:
+         *out = $out;
+\SV
+   endmodule
+```
+
+Do not create `$clk`. `clk` remains a Verilog signal, used implicitly.
+
+Once fully refactored, all logic should be between the input and output assignment sections and should contain no Verilog signals. Highlight any deviations in `tracker.md`.
+
+Before introducing new pipesignals, verify that they are compliant with naming methodology by using the script `rename_sigs.py`. For example, to test the names `$i_foo` and `$o_bar`, run `./scripts/rename_sigs.py -t i_foo o_bar`. (For full usage, run `./scripts/rename_sigs.py -h`.) (For these, `$foo` and `$bar` are recommended, instead.)
+
+FEV may present difficulties when replacing the use of output signals in expressions with the new intermediate pipesignals. Outputs are cut points for EQY, and the fanin cone of an expression is cut by its use of the output signal, but the gate model will not be cut by the intermediate TL-Verilog signal.
+
+Take a very incremental approach with such cases. Replace internal uses of output signals one-by-one. Merge output partitions using commands in the `[collect *]` and/or `[partition *]` sections, such as:
+
+```
+[collect *]
+# A very heavy-handed group-everything.
+group *
+```
+
+or
+
+```
+[partition *]
+# Merge partitions selectively.
+merge /^(out1|out2|...)$/
+```
+
+or
+
+```
+[partition *]
+# Merge all outputs (for a design with a o_* naming convention).
+name outputs /^o_/
+```
+
+Be sure to include in the unified partition the gold output signal that is replaced and any other output signals whose fanins include the modified expression.
+
+This task is successful only if there is no longer any use of Verilog signals in logic expressions (only in the input/outuput connections sections).
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.

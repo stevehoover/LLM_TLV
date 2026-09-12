@@ -1,0 +1,48 @@
+User guidance for "Signal Assignments to TLV Pipesignal Assignments", from
+diagnosing your failed attempts and from this module's previously completed
+conversion (the example below is its verified byte-exact step for this task).
+
+WHY YOUR ATTEMPTS FAILED: you wrote pipesignal assignments like
+   $signbit = *imm31 & ! *i_csr_imm_en;
+INSIDE the \SV_plus block. Inside \SV_plus, a `$name` is only a USE of the
+pipesignal, never an assignment, so SandPiper reports
+"LOGIC_ERROR (UNASSIGNED-SIG): Signal |default$... is used but never
+assigned." Pipesignal assignments must sit in TLV context, at the SAME
+indentation level as `\SV_plus` itself (directly under @0), never inside it.
+
+VERIFIED PATTERN from the previous conversion of this module, same structure
+as your file. Because signbit has a different definition per m5 arm, the
+assignment lives in its own small m5_if_eq_block AT TLV SCOPE, placed before
+the big \SV_plus block:
+
+         // Pipesignal assignments
+         m5_if_eq_block(m5_cond_w_1, 1, ['
+         $signbit = *imm31 & ! *i_csr_imm_en;
+         '], ['
+         $signbit = *ii31 & ! *i_csr_imm_en;
+         '])
+
+(use YOUR current register names on the right-hand side; `*name` reads a
+module-level Verilog signal from TLV context). Then, in the SAME attempt:
+  - DELETE the `wire signbit = ...;` declaration from BOTH m5 arms inside
+    \SV_plus.
+  - Replace every use of `signbit` inside \SV_plus with `$signbit` (reading
+    a TLV pipesignal from \SV_plus is legal, assigning is not).
+
+The next step it did (also verified) was the clock alias, same shape:
+         // Simple signal assignment converted to TL-Verilog pipesignal
+         $clk = *i_clk;
+with the `wire clk = i_clk;` line deleted and always blocks becoming
+`always \@(posedge $clk)` (note the escaped \@ inside \SV_plus).
+
+RULES:
+- Convert ONE signal per fev.sh pass. This task is iterative; small steps
+  keep FEV failures attributable.
+- Convert simple fixed-width internal signals (signbit, clk alias). Leave
+  the W-parameterized outputs (o_csr_imm, o_imm) and the shift registers
+  alone; they belong to later tasks.
+- Do not resubmit an unchanged file; the reviewer compares before and after.
+- If incremental FEV later fails UNKNOWN on partitions after a conversion,
+  check whether the converted signal needs a gold-match line in fev.eqy
+  (gold side: its old plain name in feved.sv; gate side may use the TLV
+  pipesignal reference).

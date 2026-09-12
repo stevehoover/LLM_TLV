@@ -1,0 +1,11 @@
+Summary: Ensure proper clock and reset signals (if needed).
+
+TL-Verilog works with a global (free-running) clock, called `clk`. If the Verilog code uses a clock by a different name, assign it to a new `clk` signal, and update the code to use `clk` instead. A module that is purely combinational may not have a clock, and this is okay. Just be aware that if any sequential logic is defined using TL-Verilog, SandPiper will assume a `clk` exists.
+
+TL-Verilog code conventionally uses a positively-asserted synchronous reset signal, called `reset`, and FEV configurations may assume this name (not currently true, but we'll prepare for this in any case). If the module has a reset input, analyze the logic to determine its assertion level and whether it is synchronous or asynchronous. It's name and/or code comments may also be revealing. If there is no reset signal, none is needed, and this task is complete.
+
+If there are any asynchronous uses of reset, the following changes will be needed that impact functionality and cannot be FEVed. At this point, that's okay. `feved.tlv` and `wip.tlv` should be unchanged from `prepared.sv`. Double check to be sure. If you do need to make a change, note that `prepared.sv` should be read-only now. You'll have to make it writable, and restore it to read-only when you are done. If the reset input is called `reset`, change its name in `prepared.sh` to `areset` (or `aresetn` if negatively asserted). Modify `prepared.sv` to synchronize the asynchronous reset using two flip-flops as a synchronizer, producing `reset` or `resetn`. Further update `prepared.sv` to use this new reset synchronously. Copy changes to `feved.tlv` and `wip.tlv`. Update `tracker.md` to highlight these unFEVed changes in `prepared.sv`.
+
+If the input reset signal is negatively asserted, create an internal positively-asserted reset. This can be done in `wip.tlv` as it will not impact behavior. Call this positively-asserted reset `reset`. Update all uses of the old reset to use this new one.
+
+Unless you had to establish a new baseline `prepared.sv` model, there should be no interface changes for this (or any subsequent) task. `reset` can be created from the reset input as an internal signal, not by changing the interface.

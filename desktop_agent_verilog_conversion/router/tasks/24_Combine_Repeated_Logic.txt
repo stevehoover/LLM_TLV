@@ -1,0 +1,17 @@
+Summary: Factor repeated logic into M5 macros or loops to make the source significantly shorter.
+
+The conversion so far has favored explicit, one-expression-per-signal code. That is good for verification, but it leaves patterns that repeat many times with only a few things changing between repetitions (for example a set of shift-register stages that differ only in their name, their shift source, and their write-back bit). TL-Verilog's M5 preprocessor exists to remove exactly this kind of repetition.
+
+Reduce the source by expressing each repeated pattern once:
+
+- Define an M5 macro (`m5_macro(name, ['...'])`, instantiated as `m5_name(args)`) or a TLV macro (`\TLV name(args)` instantiated with `m5+name(args)`) for each family of near-identical statements, with the varying parts as arguments. Substitute `$1`, `$2`, ... for the arguments inside the macro body, or use named parameters.
+- Where a family is naturally a list, generate it with a loop (`m5_repeat`, `m5_foreach`, or a recursive macro) over a compact table of the varying values rather than writing each instance out.
+- Keep each configuration branch (`m5_if_eq_block` and similar) working exactly as before; the macro may be shared across branches when the pattern is the same and parameterized where it differs.
+- Do not change behavior, interfaces, signal names visible to FEV, or the set of supported configurations. Do not remove comments that carry information; move them to the macro definition when the logic moves there.
+- Readability matters: a reader should be able to see the shared pattern in the macro and the differences in the instantiation table. Prefer one clear macro over a clever one.
+
+The goal is less text, not just fewer lines. A macro whose calls each carry a long list of arguments has only moved the text around; keep parameter lists short (a handful of arguments) and let the macro body hold everything the instances share.
+
+Report the line count and the character count of `wip.tlv` before and after this task in `tracker.md`, along with which patterns you factored and how many instances each one covers.
+
+Be sure all changes for this task have been completed fully and that `./scripts/fev.sh` passes before reviewing `instructions/desktop_agent_instructions.md` and running `./scripts/get_task.py next`. If the task was not fully successful, wrap-up, update the user, and stop working, awaiting user guidance.
