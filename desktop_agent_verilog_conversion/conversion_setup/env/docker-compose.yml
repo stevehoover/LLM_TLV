@@ -18,7 +18,7 @@ services:
       dockerfile: Dockerfile
     image: claude-code-env:latest
     volumes:
-      - ../../..:/workspace/proj:rw  # Project root mounted as work directory
+      - ../..:/workspace/proj:rw  # Project root mounted as work directory
       # Add data directory if needed:
       # - ./workspace/data:/workspace/data:ro
     working_dir: /workspace/proj/tlv/project_instructions
