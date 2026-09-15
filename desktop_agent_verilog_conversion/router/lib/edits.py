@@ -13,6 +13,11 @@ from . import config
 
 JUSTIFY_RE = re.compile(r"===JUSTIFICATION===\n(.*?)\n?===END===", re.S)
 
+# An omission marker is any line beginning with "..." (the original
+# conversion-to-TLV script's rule, so annotated markers like
+# "... (unchanged)" also count).
+DOTS_RE = re.compile(r"\s*\.\.\.")
+
 
 def extract_justification(text):
     m = JUSTIFY_RE.search(text)
@@ -41,14 +46,14 @@ def expand_omissions(new, orig):
     # ambiguous: return None so the caller requests the full file instead of
     # guessing.
     import difflib
-    nl, ol = new.split("\n"), orig.split("\n")
+    nl, ol = new.rstrip().split("\n"), orig.split("\n")
     out = []
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, nl, ol, autojunk=False).get_opcodes():
         chunk = nl[i1:i2]
         if tag == "equal":
             out.extend(chunk)
             continue
-        dots = [l for l in chunk if l.strip() == "..."]
+        dots = [l for l in chunk if DOTS_RE.match(l)]
         if not dots:
             out.extend(chunk)
         elif len(dots) == len(chunk):
@@ -72,7 +77,7 @@ def apply_files(text):
             continue
         p = os.path.join(config.MDIR, name)
         orig = open(p).read() if os.path.exists(p) else None
-        if any(l.strip() == "..." for l in body.split("\n")):
+        if any(DOTS_RE.match(l) for l in body.split("\n")):
             if orig is None:
                 APPLY_ERROR = (f"File {name} is new but uses \"...\" omission lines; "
                                "new files must be written out in full.")

@@ -15,7 +15,7 @@ import sys
 
 ROUTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib", "edits.py")
 WANTED = {"is_no_change", "extract_justification", "JUSTIFY_RE",
-          "expand_omissions"}
+          "expand_omissions", "DOTS_RE"}
 
 
 def load_defs():
@@ -119,6 +119,31 @@ def _():
 def _():
     new = "line1\n...\nline4\nline6\n...\nline10"
     want = "line1\nline2\nline3\nline4\nline6\nline7\nline8\nline9\nline10"
+    got = expand_omissions(new, ORIG10)
+    assert got == want, f"got {got!r}"
+
+
+@case("dots: trailing blank lines in the body do not truncate the file")
+def _():
+    orig = "line1\n\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9"
+    new = "line1\n\nline2\nCHANGED\nline4\n...\nline9\n\n"
+    want = orig.replace("line3", "CHANGED")
+    got = expand_omissions(new, orig)
+    assert got == want, f"got {got!r}"
+
+
+@case("dots: annotated marker '... (unchanged)' counts as an omission")
+def _():
+    new = "line1\nCHANGED\nline3\n... (unchanged)\nline10"
+    want = ORIG10.replace("line2", "CHANGED")
+    got = expand_omissions(new, ORIG10)
+    assert got == want, f"got {got!r}"
+
+
+@case("dots: four-dot marker counts as an omission")
+def _():
+    new = "line1\n....\nline9\nCHANGED"
+    want = "\n".join(f"line{i}" for i in range(1, 10)) + "\nCHANGED"
     got = expand_omissions(new, ORIG10)
     assert got == want, f"got {got!r}"
 
