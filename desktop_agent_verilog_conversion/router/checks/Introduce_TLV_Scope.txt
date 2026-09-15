@@ -1,0 +1,10 @@
+- The macro body's logic sits under a scope named after the module (macro
+  rf_ram_if gains /rf_ram_if), as the outermost element of the body.
+- No reference to a signal that moved under the scope is left unscoped,
+  inside the file or in the module wrapper's interface connections.
+- In every fev*.eqy match section, the gate-side name of each signal now
+  under the scope carries the scope in its path; gold-side names are
+  untouched.
+- `./scripts/gen_match_lines.py --check` passes for every fev_full*.eqy.
+- The macro's parameters, the /_top convention, and the module wrapper
+  are otherwise unchanged.
