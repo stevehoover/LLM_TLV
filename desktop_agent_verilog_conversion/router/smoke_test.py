@@ -38,7 +38,7 @@ check(config.LLMTLV_DIR == config.REPO_DIR,
       f"default MM_LLMTLV_DIR is {config.LLMTLV_DIR}, expected {config.REPO_DIR}")
 
 order = config.load_order()
-check(len(order) == 27, f"default order.json lists {len(order)} tasks, expected 27")
+check(len(order) == 28, f"default order.json lists {len(order)} tasks, expected 28")
 check(all(os.path.isfile(path) for _, path in order),
       "a task file named in the default order.json does not exist")
 

@@ -1,0 +1,44 @@
+Summary: Wrap the macro's logic in a TLV hierarchy scope named after the module.
+
+This step applies after the module's logic lives in its own TLV macro
+(`\TLV <module_name>(/_top)`). Introduce a TLV hierarchy scope named after
+the module, so instantiating the macro places all of its signals under
+that scope (e.g. macro `rf_ram_if` gains `/rf_ram_if`, and its pipesignals
+become visible from outside as /rf_ram_if...$signal). If the macro body is
+already wrapped in this scope, report NO_CHANGE.
+
+Transform:
+
+1. Make the scope the outermost element of the macro body: add the scope
+   line (`/rf_ram_if`) as the first line of the body and indent everything
+   that was in the body one level (3 spaces) beneath it. Pipelines,
+   stages, and logic move under the scope unchanged.
+2. References between signals inside the macro need no edits; they move
+   with the scope.
+3. Every reference to the macro's pipesignals from outside the macro (the
+   including context, and the module wrapper's interface connections)
+   gains the scope in its path, e.g. `|default$rgnt` becomes
+   `/rf_ram_if|default$rgnt`.
+4. The macro's parameters and the `/_top` convention are unchanged.
+
+Introducing the scope renames every signal SandPiper generates from the
+macro, so the FEV match lines must follow: in each fev*.eqy match
+section, add the scope to the path of every gate-side name (TL-Verilog
+syntax) for a signal now under the scope (e.g. `|default<>0$rgnt` becomes
+`/rf_ram_if|default<>0$rgnt`). The gold side (instance-prefixed names
+from the flattened original Verilog) does not change; do not touch it.
+
+A mechanical cross-check runs before FEV: it enumerates both sides'
+signals and rejects match lines that name signals that do not exist, or
+gold state left unmatched. If it fails, no FEV run is spent; fix the
+listed disagreements. You can run it yourself as
+`./scripts/gen_match_lines.py --check <fev_full*.eqy>`.
+
+Report in tracker.md which scope was introduced and how many match lines
+were updated.
+
+Be sure all changes for this task have been completed fully and that
+`./scripts/fev.sh` passes before reviewing
+`instructions/desktop_agent_instructions.md` and running
+`./scripts/get_task.py next`. If the task was not fully successful,
+wrap-up, update the user, and stop working, awaiting user guidance.

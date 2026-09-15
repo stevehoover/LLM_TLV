@@ -50,6 +50,17 @@ hints from the serv_immdec runs (`hints_examples/`), and a `timeout` shim
 - MM_ACCEPT_GLOB / MM_ACCEPT_DISTINCT block the observed work-dodging moves
   (no files created; per-config designs byte-identical).
 - attempts.jsonl records every attempt's feedback-in and full reply.
+- Per-task pre-FEV validators: before fev.sh, the runner looks for
+  `validators/<Task_Name>.sh` (same name mangling as hints) and runs it in
+  the module dir; a nonzero exit skips the FEV run and feeds the
+  validator's output back as retry feedback. The Introduce TLV Scope task
+  (wrap a converted macro's logic in a scope named after the module, and
+  prefix that scope onto the gate-side names in the eqy match sections)
+  uses one: `../scripts/gen_match_lines.py --check` replays each
+  fev_full*.eqy's read and script commands through yosys, enumerates both
+  sides' signals, and fails fast on match lines that name nonexistent
+  signals or leave gold state unmatched, so a wrong match list costs no
+  FEV run.
 
 ## Setup
 
