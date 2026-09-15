@@ -150,6 +150,38 @@ attempts.jsonl. Requires the `claude` CLI installed and logged in
 anthropic key file). This is the direction of issue #8: programmatic
 sequencing with an agentic refactor step.
 
+## Hierarchy combining plan (pre-step)
+
+`plan.py` is a design-level pre-step, run once per design before converting
+any module:
+
+```
+python3 desktop_agent_verilog_conversion/router/plan.py /path/to/design/rtl [top_module] [--no-llm] [--out <dir>]
+```
+
+It surveys every module in the design (a pure-Python parse of declarations
+and instantiations, good enough for hierarchy surveying, no yosys needed)
+and proposes a per-module combining strategy. Mechanical facts decide the
+defaults: the top module stays a module; a module instantiated twice or
+more becomes a macro (with config knobs when its parameters differ across
+sites); a single-use module is inlined as a TLV scope named `/<module>`,
+since full flattening maximizes code reduction. One cheap-first LLM call
+(same providers as the router; `--no-llm` skips it) annotates each module
+with a generic-vs-structural judgment and may upgrade an inline to a macro.
+The proposal is printed as a table; interactively the user overrides
+strategies (`<module>=module|macro|inline`) and names synthesis-boundary
+modules (`synth <module>`), which cannot be auto-detected and default to
+none. EOF or a non-tty accepts the defaults, so it also runs unattended.
+
+The accepted plan is persisted as collateral in the design dir (or
+`--out`): `combining_plan.json` records per-module strategy,
+instantiation count, reason, and whether the user overrode it, plus the
+synthesis boundaries; `combining_plan.md` is the same content readable.
+The combining tasks (Combine Repeated Logic / Inline Child Macros)
+consult this file for the strategy to apply to each module.
+
+Test: `python3 plan_test.py` (self-contained, no network).
+
 ## Hints: the ratchet
 
 When a task fails its whole attempt budget, the run stops. Write what you
