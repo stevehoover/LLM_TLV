@@ -3,8 +3,8 @@
 
 This file parses the source with ast and execs ONLY the top-level
 definitions under test: is_no_change, extract_justification, JUSTIFY_RE,
-expand_omissions, SR_BLOCK_RE, apply_search_replace. That keeps the tests
-free of any environment setup (no MDIR, no MM_* variables, no network).
+expand_omissions. That keeps the tests free of any environment setup
+(no MDIR, no MM_* variables, no network).
 
 Run: python3 tests.py   (no pytest; prints "N/N cases passed", exit 1 on fail)
 """
@@ -15,7 +15,7 @@ import sys
 
 ROUTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib", "edits.py")
 WANTED = {"is_no_change", "extract_justification", "JUSTIFY_RE",
-          "expand_omissions", "SR_BLOCK_RE", "apply_search_replace"}
+          "expand_omissions", "DOTS_RE"}
 
 
 def load_defs():
@@ -42,8 +42,6 @@ is_no_change = NS["is_no_change"]
 extract_justification = NS["extract_justification"]
 JUSTIFY_RE = NS["JUSTIFY_RE"]
 expand_omissions = NS["expand_omissions"]
-SR_BLOCK_RE = NS["SR_BLOCK_RE"]
-apply_search_replace = NS["apply_search_replace"]
 
 CASES = []
 
@@ -125,84 +123,29 @@ def _():
     assert got == want, f"got {got!r}"
 
 
-# ---------------- search/replace ----------------
-
-@case("sr: single block applies")
+@case("dots: trailing blank lines in the body do not truncate the file")
 def _():
-    body = "<<<<<<< SEARCH\nline5\n=======\nCHANGED5\n>>>>>>> REPLACE"
-    out, err = apply_search_replace(body, ORIG10)
-    assert err is None, f"err {err!r}"
-    assert out == ORIG10.replace("line5", "CHANGED5"), f"got {out!r}"
+    orig = "line1\n\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9"
+    new = "line1\n\nline2\nCHANGED\nline4\n...\nline9\n\n"
+    want = orig.replace("line3", "CHANGED")
+    got = expand_omissions(new, orig)
+    assert got == want, f"got {got!r}"
 
 
-@case("sr: multiple blocks apply in order")
+@case("dots: annotated marker '... (unchanged)' counts as an omission")
 def _():
-    body = ("<<<<<<< SEARCH\nline2\nline3\n=======\nTWO\nTHREE\n>>>>>>> REPLACE\n"
-            "<<<<<<< SEARCH\nline8\n=======\nEIGHT\n>>>>>>> REPLACE")
-    out, err = apply_search_replace(body, ORIG10)
-    assert err is None, f"err {err!r}"
-    want = ORIG10.replace("line2\nline3", "TWO\nTHREE").replace("line8", "EIGHT")
-    assert out == want, f"got {out!r}"
+    new = "line1\nCHANGED\nline3\n... (unchanged)\nline10"
+    want = ORIG10.replace("line2", "CHANGED")
+    got = expand_omissions(new, ORIG10)
+    assert got == want, f"got {got!r}"
 
 
-@case("sr: SEARCH not found returns error mentioning it")
+@case("dots: four-dot marker counts as an omission")
 def _():
-    body = "<<<<<<< SEARCH\nno_such_line\n=======\nX\n>>>>>>> REPLACE"
-    out, err = apply_search_replace(body, ORIG10)
-    assert out is None and err and "not found" in err, f"got {out!r}, {err!r}"
-
-
-@case("sr: SEARCH matching twice returns error asking for more context")
-def _():
-    orig = "dup\nmid\ndup\n"
-    body = "<<<<<<< SEARCH\ndup\n=======\nX\n>>>>>>> REPLACE"
-    out, err = apply_search_replace(body, orig)
-    assert out is None and err and "more than once" in err, f"got {out!r}, {err!r}"
-
-
-@case("sr: stray text outside blocks rejected")
-def _():
-    body = ("Here is my edit:\n"
-            "<<<<<<< SEARCH\nline5\n=======\nCHANGED5\n>>>>>>> REPLACE")
-    out, err = apply_search_replace(body, ORIG10)
-    assert out is None and err and "outside" in err, f"got {out!r}, {err!r}"
-
-
-@case("sr: missing markers (no blocks) rejected")
-def _():
-    out, err = apply_search_replace("just some file contents\nno markers", ORIG10)
-    assert out is None and err and "No valid" in err, f"got {out!r}, {err!r}"
-
-
-@case("sr: malformed block (no ======= divider) rejected")
-def _():
-    body = "<<<<<<< SEARCH\nline5\nCHANGED5\n>>>>>>> REPLACE"
-    out, err = apply_search_replace(body, ORIG10)
-    assert out is None and err is not None, f"got {out!r}, {err!r}"
-
-
-@case("sr: whitespace between blocks tolerated")
-def _():
-    body = ("<<<<<<< SEARCH\nline2\n=======\nTWO\n>>>>>>> REPLACE\n\n\n"
-            "<<<<<<< SEARCH\nline9\n=======\nNINE\n>>>>>>> REPLACE\n")
-    out, err = apply_search_replace(body, ORIG10)
-    assert err is None, f"err {err!r}"
-    assert out == ORIG10.replace("line2", "TWO").replace("line9", "NINE"), f"got {out!r}"
-
-
-@case("sr: empty replacement deletes the searched text")
-def _():
-    orig = "keep1\ngone\nkeep2"
-    body = "<<<<<<< SEARCH\ngone\n=======\n>>>>>>> REPLACE"
-    out, err = apply_search_replace(body, orig)
-    assert err is None, f"err {err!r}"
-    assert out == "keep1\n\nkeep2", f"got {out!r}"
-
-
-@case("sr: SR_BLOCK_RE captures search and replace groups")
-def _():
-    m = SR_BLOCK_RE.search("<<<<<<< SEARCH\na\nb\n=======\nc\n>>>>>>> REPLACE")
-    assert m and m.group(1) == "a\nb" and m.group(2) == "c", f"got {m and m.groups()!r}"
+    new = "line1\n....\nline9\nCHANGED"
+    want = "\n".join(f"line{i}" for i in range(1, 10)) + "\nCHANGED"
+    got = expand_omissions(new, ORIG10)
+    assert got == want, f"got {got!r}"
 
 
 # ---------------- NO_CHANGE parsing ----------------
@@ -239,12 +182,6 @@ def _():
 @case("no_change: reply containing ===FILE must NOT count")
 def _():
     text = "NO_CHANGE\n===FILE: wip.tlv===\nm4_TLV_version 1d\n===END==="
-    assert is_no_change(text) is False
-
-
-@case("no_change: reply containing a SEARCH block must NOT count")
-def _():
-    text = "NO_CHANGE\n<<<<<<< SEARCH\na\n=======\nb\n>>>>>>> REPLACE"
     assert is_no_change(text) is False
 
 

@@ -7,7 +7,7 @@ import time
 
 from . import accounting, config, edits, state
 from .accounting import cache_str, print_summary, track
-from .config import ACCEPT_GLOB, EDIT_FORMAT, JUDGE_ON, MODEL_NAME, PROVIDERS
+from .config import ACCEPT_GLOB, JUDGE_ON, MODEL_NAME, PROVIDERS
 from .edits import apply_files, extract_justification, is_no_change, restore
 from .fev import enrich_feedback, run_fev, run_in_module
 from .judge import accept_count, acceptance_ok, distinct_ok, judge, write_judge_record
@@ -34,8 +34,8 @@ def main():
                                  re.sub(r"[^A-Za-z0-9]+", "_", tname) + ".txt")
         hinted = os.path.exists(hint_path)
         if hinted:
-            task += "\n\n# Guidance from the user (after prior failed attempts)\n\n" + open(hint_path).read()
-        print(f"\n##### TASK: {tname} [{time.strftime('%H:%M:%S')}]" + (" (with user guidance)" if hinted else ""))
+            task += "\n\n# Additional guidance for this task\n\n" + open(hint_path).read()
+        print(f"\n##### TASK: {tname} [{time.strftime('%H:%M:%S')}]" + (" (with hint)" if hinted else ""))
         set_status_fields(task=tname)
         done = False
         used = None
@@ -47,7 +47,6 @@ def main():
         state.save(done_tasks, inflight)
         accept_base = accept_count()
         task_before = snap("wip.tlv")
-        sr_apply_fails = 0
         if tname in SCRIPT_TASKS:
             set_status_fields(model="script")
             sout = run_in_module(SCRIPT_TASKS[tname])
@@ -253,19 +252,7 @@ def main():
                     log_unparsed(tname, f"{provider} #{a}", resp)
                     print(f"  [{provider} #{a}] reply not parseable (logged), retry")
                     feedback = edits.APPLY_ERROR or "Your reply did not follow the ===FILE:===/===END=== format."
-                    # Hard fallback for search/replace (agreed with Steve, Aug 18): the
-                    # dots path fails soft to a full-file request, sr previously kept
-                    # retrying blocks forever. After two failed applies, blocks are
-                    # banned for the rest of the task.
-                    if EDIT_FORMAT == "sr" and "earch/replace" in feedback:
-                        sr_apply_fails += 1
-                        if sr_apply_fails >= 2:
-                            feedback += ("\n\nSearch/replace blocks have now failed to apply "
-                                         f"{sr_apply_fails} times on this task. Do NOT send any more "
-                                         "search/replace blocks: reply with the COMPLETE updated file "
-                                         "contents inside the ===FILE:===/===END=== block.")
                     continue
-                sr_apply_fails = 0
                 set_status_fields(model=MODEL_NAME[provider], cache=u)
                 ok, out = run_fev()
                 print(f"  [{provider} #{a}] files={files} fev={'PASS' if ok else 'FAIL'} (${c:.4f})")

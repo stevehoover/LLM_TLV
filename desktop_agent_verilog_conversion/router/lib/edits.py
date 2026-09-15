@@ -1,10 +1,9 @@
-"""Edit-format parsing and applying: the "..." omission format, aider-style
-search/replace blocks, NO_CHANGE detection, and justification extraction.
+"""Edit-format parsing and applying: the "..." omission format, NO_CHANGE
+detection, and justification extraction.
 
 tests.py loads the pure parser functions in this file (is_no_change,
-extract_justification, expand_omissions, apply_search_replace and their
-regexes) directly by AST, so they must stay top-level and free of imports
-beyond re/os.
+extract_justification, expand_omissions and their regexes) directly by AST,
+so they must stay top-level and free of imports beyond re/os.
 """
 
 import os
@@ -13,6 +12,11 @@ import re
 from . import config
 
 JUSTIFY_RE = re.compile(r"===JUSTIFICATION===\n(.*?)\n?===END===", re.S)
+
+# An omission marker is any line beginning with "..." (the original
+# conversion-to-TLV script's rule, so annotated markers like
+# "... (unchanged)" also count).
+DOTS_RE = re.compile(r"\s*\.\.\.")
 
 
 def extract_justification(text):
@@ -29,7 +33,7 @@ def is_no_change(text):
     t = text.strip()
     if t == "NO_CHANGE":
         return True
-    if "===FILE" in t or "<<<<<<< SEARCH" in t:
+    if "===FILE" in t:
         return False
     return bool(re.search(r"^NO_CHANGE\s*$", t, re.M))
 
@@ -42,14 +46,14 @@ def expand_omissions(new, orig):
     # ambiguous: return None so the caller requests the full file instead of
     # guessing.
     import difflib
-    nl, ol = new.split("\n"), orig.split("\n")
+    nl, ol = new.rstrip().split("\n"), orig.split("\n")
     out = []
     for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(None, nl, ol, autojunk=False).get_opcodes():
         chunk = nl[i1:i2]
         if tag == "equal":
             out.extend(chunk)
             continue
-        dots = [l for l in chunk if l.strip() == "..."]
+        dots = [l for l in chunk if DOTS_RE.match(l)]
         if not dots:
             out.extend(chunk)
         elif len(dots) == len(chunk):
@@ -57,35 +61,6 @@ def expand_omissions(new, orig):
         else:
             return None
     return "\n".join(out)
-
-
-SR_BLOCK_RE = re.compile(r"<<<<<<< SEARCH\n(.*?)\n=======\n?(.*?)\n?>>>>>>> REPLACE", re.S)
-
-
-def apply_search_replace(body, orig):
-    # Aider-style search/replace: every SEARCH block must match the original
-    # exactly ONCE (same whitespace). Returns (new_text, err); a non-None err
-    # goes back to the model as feedback.
-    pos = 0
-    out = orig
-    blocks = list(SR_BLOCK_RE.finditer(body))
-    if not blocks:
-        return None, "No valid <<<<<<< SEARCH/=======/>>>>>>> REPLACE blocks found."
-    leftover = SR_BLOCK_RE.sub("", body).strip()
-    if leftover:
-        return None, ("Content found outside search/replace blocks. For an existing file, "
-                      "provide ONLY search/replace blocks, or the complete file with none.")
-    for m in blocks:
-        search, replace = m.group(1), m.group(2)
-        n = out.count(search)
-        if n == 0:
-            return None, ("SEARCH text not found in the current file (must match exactly, "
-                          "including whitespace):\n" + search[:400])
-        if n > 1:
-            return None, ("SEARCH text matches the current file more than once; add more "
-                          "surrounding context lines to make it unique:\n" + search[:400])
-        out = out.replace(search, replace, 1)
-    return out, None
 
 
 APPLY_ERROR = ""
@@ -102,18 +77,7 @@ def apply_files(text):
             continue
         p = os.path.join(config.MDIR, name)
         orig = open(p).read() if os.path.exists(p) else None
-        if "<<<<<<< SEARCH" in body:
-            if orig is None:
-                APPLY_ERROR = (f"File {name} is new but uses search/replace blocks; "
-                               "new files must be written out in full.")
-                restore(originals)
-                return [], {}
-            body, err = apply_search_replace(body, orig)
-            if body is None:
-                APPLY_ERROR = f"Search/replace edit for {name} failed: {err}"
-                restore(originals)
-                return [], {}
-        elif any(l.strip() == "..." for l in body.split("\n")):
+        if any(DOTS_RE.match(l) for l in body.split("\n")):
             if orig is None:
                 APPLY_ERROR = (f"File {name} is new but uses \"...\" omission lines; "
                                "new files must be written out in full.")
