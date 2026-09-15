@@ -2,14 +2,13 @@
 
 A programmatic driver for the conversion flow in this repo: one stateless
 API call per attempt, a cheap model first with escalation, and formal
-equivalence checking as the only gate. It ran the serv_rf_ram conversion for
-$1.62 and both serv_immdec A/B runs (about $10 each with every failed round
-included). Per the Sep 1 meeting this is the primary conversion workflow;
-the desktop agent flow described in `../README.md` remains supported, and
-both share the same task definitions, instructions, fev.sh harness, and
-Docker toolchain image.
+equivalence checking as the only gate. This is the primary conversion
+workflow; the desktop agent flow described in `../README.md` remains
+supported.
 
-## What is shared with the desktop agent flow
+## Relationship to the desktop agent flow
+
+Genuinely shared:
 
 - `../instructions/desktop_agent_instructions.md` is the core of the cached
   common guide sent to every worker. The router wraps it with
@@ -22,10 +21,12 @@ Docker toolchain image.
   `../conversion_setup/env/Dockerfile.fev` (or the full agent image from
   `Dockerfile` in the same directory).
 
-New here: the routing loop itself (`router.py` + `lib/`), the per-task
-prompt files (`tasks/`), per-task judge criteria (`checks/`), reference
-hints from the serv_immdec runs (`hints_examples/`), and a `timeout` shim
-(`toolshim/`) that widens fev.sh's SandPiper timeout for slower machines.
+Router-specific: the routing loop (`router.py` + `lib/`), per-task judge
+criteria (`checks/`), a reference hint set (`hints_examples/`), a `timeout`
+shim (`toolshim/`) that widens fev.sh's SandPiper timeout for slower
+machines, and the task definitions themselves (`tasks/`): these are copies
+of the tasks in `../instructions/conversion_tasks.md`, one file per task,
+not references, so an edit there must be mirrored here.
 
 ## Why it is cheap
 
@@ -33,9 +34,8 @@ hints from the serv_immdec runs (`hints_examples/`), and a `timeout` shim
    (identical across all tasks and modules), the task + current files
    (identical across retries within a task), and the latest feedback. Cache
    breakpoints sit after the first two blocks, so retries are mostly cache
-   reads. Retry attempts routinely hit 90%+ input cache.
+   reads.
 2. deepseek attempts each task first; claude only sees tasks deepseek failed.
-   On serv_rf_ram deepseek handled 21 of 45 checkpoints for about 7 cents.
 3. The full shared instructions ride along in the cached prefix, so nothing
    is re-sent at full price.
 
@@ -50,6 +50,14 @@ hints from the serv_immdec runs (`hints_examples/`), and a `timeout` shim
 - MM_ACCEPT_GLOB / MM_ACCEPT_DISTINCT block the observed work-dodging moves
   (no files created; per-config designs byte-identical).
 - attempts.jsonl records every attempt's feedback-in and full reply.
+
+## Edit format
+
+Workers reply with whole files in `===FILE:`/`===END===` blocks, using the
+dots omission format: a line containing exactly `...` stands for an
+unchanged region of the original file, applied by diff alignment. An
+ambiguous `...` (mixed with changed lines in one region) fails soft to a
+request for the complete file.
 
 ## Setup
 
@@ -80,7 +88,7 @@ python3 desktop_agent_verilog_conversion/router/router.py /path/to/serv/tlv/<mod
 Tests, both dependency-free:
 
 ```
-python3 tests.py        # 34 parser cases for the edit formats
+python3 tests.py        # parser cases for the edit format
 python3 smoke_test.py   # imports every module, exercises preflight
 ```
 
@@ -99,7 +107,7 @@ The implementation lives in `lib/`, one concern per module:
 | lib/config.py | every MM_* knob and shared constant, read once at import; MDIR set from argv |
 | lib/prompts.py | system prompts, the composed cached common guide, per-attempt prompt assembly |
 | lib/providers.py | deepseek/claude API calls with caching and retry, plus the Claude Code agent worker |
-| lib/edits.py | edit-format parsing and applying: dots omissions, search/replace blocks, NO_CHANGE, justifications |
+| lib/edits.py | edit-format parsing and applying: dots omissions, NO_CHANGE, justifications |
 | lib/fev.py | docker invocation of the shared fev.sh and SandPiper error-context enrichment |
 | lib/judge.py | the oversight judge, judge.json records, and the acceptance checks |
 | lib/workspace.py | module-dir file access, status.json, attempts.jsonl and unparsed-reply logging |
@@ -114,10 +122,9 @@ The implementation lives in `lib/`, one concern per module:
 |---|---|---|
 | MM_ORDER | router/tasks/order.json | task list, [name, task-file] pairs; task paths resolve relative to the order file |
 | MM_PROVIDERS | deepseek:2,claude:2 | attempt budget per provider, in order |
-| MM_EDIT_FORMAT | dots | dots (whole file with "..." omissions) or sr (search/replace blocks) |
 | MM_JUDGE | 1 | oversight judge on/off |
 | MM_CHECKS | router/checks | per-task judge criteria files |
-| MM_HINTS | router/hints | per-task user guidance files, appended to the task prompt; filename = task name with every non-alphanumeric run replaced by `_`, plus `.txt` (e.g. `Non_vector_Signals.txt`) |
+| MM_HINTS | router/hints | per-task hint files, appended to the task prompt; filename = task name with every non-alphanumeric run replaced by `_`, plus `.txt` (e.g. `Non_vector_Signals.txt`) |
 | MM_COMMON_GUIDE | (composed) | a single prebuilt guide file, replacing the default composition from the shared instructions |
 | MM_ACCEPT_GLOB | (off) | glob whose match count must increase during the task |
 | MM_ACCEPT_DISTINCT | (off) | 1 = per-config wip_*.sv must differ |
@@ -135,29 +142,21 @@ The implementation lives in `lib/`, one concern per module:
 `MM_PROVIDERS="agent:2"` (or e.g. `"deepseek:2,agent:2"`) replaces the raw
 API worker with Claude Code running headless in the module directory: the
 agent edits the design files directly with file tools only (no shell), so
-edit formats do not apply at all. Harness files are snapshotted before every
-attempt and force-restored if touched, fev.sh and the judge gate exactly as
-for API workers, and every attempt's report still lands in attempts.jsonl.
-Requires the `claude` CLI installed and logged in (subscription usage, no
-API cost for the worker; the judge still uses the anthropic key file).
-This is the direction of issue #8: programmatic sequencing with an agentic
-refactor step.
+the edit format does not apply at all. Harness files are snapshotted before
+every attempt and force-restored if touched, fev.sh and the judge gate
+exactly as for API workers, and every attempt's report still lands in
+attempts.jsonl. Requires the `claude` CLI installed and logged in
+(subscription usage, no API cost for the worker; the judge still uses the
+anthropic key file). This is the direction of issue #8: programmatic
+sequencing with an agentic refactor step.
 
 ## Hints: the ratchet
 
 When a task fails its whole attempt budget, the run stops. Write what you
-learned into `hints/<Task_Name>.txt` (mine the previous conversion's history
-for the verified pattern; verify fixes by hand through fev.sh before turning
-them into a hint) and rerun; the hint is appended to the task prompt as user
-guidance. `hints_examples/serv_immdec/` contains the full hint set that
-carried both serv_immdec A/B runs to completion, as a reference for the
-style: state why the attempts failed, give the verified pattern byte-exact,
-and say explicitly what not to touch.
-
-## Edit formats and the A/B result
-
-Both formats are implemented (MM_EDIT_FORMAT). The serv_immdec A/B (same
-module, tasks, models, hints) finished 24/24 on both, $9.93 for dots vs
-$11.78 for sr, with the gap concentrated in one whole-file restructure task
-that search/replace blocks could not express. dots is the default; sr fails
-hard to a full-file requirement after two failed applies.
+learned into `hints/<Task_Name>.txt` (attempts.jsonl holds every failed
+exchange; verify fixes by hand through fev.sh before turning them into a
+hint) and rerun; the hint file is appended to the task prompt as additional
+guidance. `hints_examples/serv_immdec/` is a reference hint set from a
+completed serv_immdec conversion, showing the style: state why the attempts
+failed, give the verified pattern byte-exact, and say explicitly what not
+to touch.

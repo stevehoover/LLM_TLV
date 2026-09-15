@@ -34,8 +34,8 @@ def main():
                                  re.sub(r"[^A-Za-z0-9]+", "_", tname) + ".txt")
         hinted = os.path.exists(hint_path)
         if hinted:
-            task += "\n\n# Guidance from the user (after prior failed attempts)\n\n" + open(hint_path).read()
-        print(f"\n##### TASK: {tname} [{time.strftime('%H:%M:%S')}]" + (" (with user guidance)" if hinted else ""))
+            task += "\n\n# Additional guidance for this task\n\n" + open(hint_path).read()
+        print(f"\n##### TASK: {tname} [{time.strftime('%H:%M:%S')}]" + (" (with hint)" if hinted else ""))
         set_status_fields(task=tname)
         done = False
         used = None
