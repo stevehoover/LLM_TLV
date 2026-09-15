@@ -49,10 +49,6 @@ AGENT_MODEL = os.environ.get("MM_AGENT_MODEL", "sonnet")
 AGENT_MAX_TURNS = int(os.environ.get("MM_AGENT_MAX_TURNS", "40"))
 AGENT_TIMEOUT = int(os.environ.get("MM_AGENT_TIMEOUT", "900"))
 
-# Edit formats for the A/B experiment: the "..." omission style vs the
-# search/replace block style modern coding agents use. MM_EDIT_FORMAT=dots|sr.
-EDIT_FORMAT = os.environ.get("MM_EDIT_FORMAT", "dots")
-
 SERV_DIR = os.environ.get("MM_SERV_DIR", os.path.abspath("serv"))
 # The LLM_TLV checkout mounted into the container is, by default, the repo
 # this router lives in: the module dirs' scripts/ links and fev.sh come from

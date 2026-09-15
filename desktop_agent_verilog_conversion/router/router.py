@@ -13,10 +13,9 @@ checking) is the only gate that advances a task. Key mechanisms:
     behavior is unchanged). FAIL feeds back into the retry loop.
   - NO_CHANGE cross-check: a NO_CHANGE claim is confirmed by the next
     provider and then judged; workers never referee their own intent.
-  - Edit formats (MM_EDIT_FORMAT): "dots" (whole file with "..." omission
-    lines, applied by diff alignment, ambiguity fails soft to a full-file
-    request) or "sr" (aider-style search/replace blocks, exact-once match,
-    hard fallback to full file after repeated apply failures).
+  - Edit format: dots omissions, i.e. whole files with "..." lines standing
+    for unchanged regions, applied by diff alignment; ambiguity fails soft
+    to a full-file request.
   - Acceptance checks: MM_ACCEPT_GLOB (required new files), and
     MM_ACCEPT_DISTINCT=1 (per-config designs must actually differ).
   - attempts.jsonl: every worker attempt's feedback-in and full reply are

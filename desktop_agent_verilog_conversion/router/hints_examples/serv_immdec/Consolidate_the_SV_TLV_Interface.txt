@@ -4,7 +4,7 @@ green through the full multi-config FEV suite (incremental, W_1_SHARED_1,
 W_1_SHARED_0, W_4). Reproduce it exactly.
 
 Output the ENTIRE wip.tlv below verbatim as a full file inside your
-===FILE: wip.tlv=== block. Do NOT use search/replace blocks. Do not modify
+===FILE: wip.tlv=== block, with no "..." omission lines. Do not modify
 any other file.
 
 \m5_TLV_version 1d: tl-x.org
