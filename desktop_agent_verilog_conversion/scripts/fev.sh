@@ -29,6 +29,8 @@
 # as follows:
 # - SandPiper:
 #   - wip.tlv -> wip_*.sv (for all `config.json` M5_configs, or `wip.sv` if none)
+#   - Verilog tick-defines listed in `config.json` `defines` are not applied here (SandPiper passes
+#     them through); they are applied to `read_verilog` in every FEV run below.
 #   - wip.sv (from SandPiper if no M5_configs, or as a symlink to the corresponding wip_*.sv)
 # - Incremental FEV:
 #   - match_lines.eqy is extracted from fev.eqy
@@ -227,6 +229,18 @@ function run_sandpiper() {
 }
 
 
+# Add the Verilog defines from config.json (DEFINE_FLAGS) to every `read_verilog` line of the given
+# temporary .eqy file, so gold and gate are both read with the same defines. The agent-maintained
+# fev*.eqy files are left untouched.
+function apply_defines() {
+  local eqy_file="$1"
+  if [[ -n "$DEFINE_FLAGS" ]]; then
+    awk -v d="$DEFINE_FLAGS" '
+      /^[[:space:]]*read_verilog[[:space:]]/ { i = index($0, "read_verilog"); $0 = substr($0, 1, i + 11) " " d substr($0, i + 12) }
+      { print }' "$eqy_file" > "${eqy_file}.defs" && mv "${eqy_file}.defs" "$eqy_file"
+  fi
+}
+
 # A variant of run_tool specialized for eqy commands.
 function run_fev() {
   local job="$1"
@@ -234,6 +248,7 @@ function run_fev() {
   local fail_status="$3"
   local fail_msg="$4"
   local fev_out_dir="${TEMP_DIR}/${fev_name}"
+  apply_defines "${TEMP_MATCH_DIR}/${fev_name}.eqy"
   local cmd="time eqy -d ${fev_out_dir} ${TEMP_MATCH_DIR}/${fev_name}.eqy"
   run_tool "$job" "$cmd" "$fail_status" "$fail_msg"
   status=$?
@@ -343,6 +358,18 @@ NEXT_HISTORY_DIR=history/${NEXT_HISTORY_NAME}
 # Clear any stale fev.sh status from a prior attempt so a recorded checkpoint reflects
 # this run, not a previous failure. fev_cnt is preserved for loop detection.
 set_status "fev.sh running."
+
+# Verilog tick-defines from config.json's optional `defines` list, e.g. ["RISCV_FORMAL", "NAME=value"],
+# as yosys `read_verilog -D` flags. They are applied to gold and gate of every FEV run (see apply_defines).
+# SandPiper passes tick-directives in \SV regions through untouched, so it needs nothing.
+# Guard the shape as for M5_configs: a malformed entry would otherwise be a yosys usage error.
+DEFINE_FLAGS=""
+if jq -e 'has("defines")' config.json > /dev/null 2>&1; then
+  if ! jq -e '.defines | type == "array" and all(type == "string" and test("^[A-Za-z_][A-Za-z0-9_]*(=[^[:space:]]+)?$"))' config.json > /dev/null 2>&1; then
+    fail 2 "Malformed defines in config.json: it must be an ARRAY of STRINGS, each a Verilog define name with an optional value, e.g. [\"RISCV_FORMAL\", \"WIDTH=8\"]. Fix config.json and rerun."
+  fi
+  DEFINE_FLAGS=$(jq -r '.defines | map("-D" + .) | join(" ")' config.json)
+fi
 
 
 # Create, scrub, and initialize a local (visible to agent) temporary directory.
