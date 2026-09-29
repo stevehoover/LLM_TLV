@@ -52,6 +52,14 @@ The agent should produce:
 - `tlv/project_instructions/project_specific_instructions.md`: project-specific instructions for conversion agents
 - `tlv/regress/regress.sh` (or similar): a script for conversion agents to run to regress changes using the project's environment, referenced by `project_specific_instructions.md`.
 
+## Local Checks Before SandPiper
+
+`scripts/fev.sh` runs two mechanical checks in the module directory before it calls SandPiper-SaaS, so whole classes of errors are reported locally in milliseconds rather than after a cloud round trip.
+
+`scripts/tlv_lint.py --strict .` checks `wip.tlv` and the `[match ...]` sections of every `fev*.eqy` against the TL-Verilog spec and the Macros Guide: identifier form (`/x`, `|p`, `$FOO`, a state signal `$Foo` assigned without `<=` or an alignment), a non-comment line at column 0 that ends a `\TLV` region, indentation that is not a multiple of three or uses tabs, a reference whose first path element is a sibling scope rather than an ancestor or child (`/serv_rf_ram_if|default$x` written from inside `/top|default`), duplicate scope names along one path, an alignment (`<>0`, `>>N`, `<<N`) that is not at the end of the path, and M5 argument hygiene (unbalanced `['` `']`, a multi-line `m5+` call whose continuation is not indented past the call, `//` inside an argument list). Each finding is one line, `file:line: RULE: message (spec section)`; fev.sh fails with status 2 and sends nothing to SandPiper. The rule set was checked against sandpiper-saas 1.14 and lints the proven serv conversions, the Makerchip tutorial and example corpora, and warp-v clean. `--strict` adds the spec's two-letter minimum for `$` names (`$a` must be `$aa`), which SandPiper does not enforce. `scripts/tlv_lint_test.py` holds the synthetic cases for every rule.
+
+`scripts/config_coverage.py .` reads the parameters declared in `orig.sv` and the `chparam -set` lines of every `fev_full*.eqy`, and reports per parameter whether any FEV configuration changes it from its default (a parameter derived from another, such as `B = W-1`, is reported as derived). It exits 1 when at least one parameter is never varied. fev.sh runs it with `--warn-only` and prints its warnings without failing, since some parameters are legitimately fixed for a conversion.
+
 ## Docker Environment
 
 `tlv/env/Dockerfile` defines an image with all TL-Verilog conversion tools pre-installed. The setup agent may customize this by creating project-specific extensions via `tlv/env/Dockerfile.project` and `tlv/env/docker-compose.yml`.

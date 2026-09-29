@@ -208,13 +208,15 @@ Automation scripts (mostly `fev.sh`) will work with other files, including:
 
 - `orig.sv`: The original source code.
 - `prepared.sv`: Based on `orig.sv`, this is the code to be converted.
-- `config.json`: Holds the top model name.
+- `config.json`: Holds the top module name, and optionally `M5_configs`/`default_config` and `defines`.
 - `wip*.sv`: output from SandPiper from `wip.tlv`.
 - `feved.tlv` and `feved.sv`: Checkpointed from `wip.tlv` and `wip.sv` when incremental FEV passes.
 - `fully_feved.tlv` and `full_sv/wip*.sv`: Checkpointed when full FEV passes (though they play no role in the process).
 - `fev_full*.eqy`: EQY configuration files for full FEV runs.
 
 You should not have to worry about these unless changes affect alternatively-parameterized models differently than the default parameterization, in which case you can consult `instructions/full_fev_failed.md`. But, if things go awry, you may need to poke around these files. With the exception of `fev_full*.eqy`, you should not modify these directly, but rather suggest changes to the user if the process gets off course. The same is true of automation scripts if you encounter bugs.
+
+If the module's Verilog only elaborates with a tick-define set (e.g. its body is inside `` `ifdef RISCV_FORMAL ``), list the define in `config.json` as `"defines": ["RISCV_FORMAL"]` (or `"NAME=value"`). `fev.sh` adds the corresponding `-DNAME[=value]` to every `read_verilog` of both gold and gate in the temporary copies of `fev.eqy` and `fev_full*.eqy` that it hands to EQY, so the `.eqy` files you maintain stay as they are. SandPiper passes tick-directives in `\SV` regions through untouched, so nothing else is needed. Without `defines`, nothing changes.
 
 Prepare:
 
