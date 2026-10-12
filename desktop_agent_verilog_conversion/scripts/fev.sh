@@ -227,6 +227,70 @@ function run_sandpiper() {
 }
 
 
+# EQY exits 0 and reports "Successfully proved designs equivalent" even when it
+# had nothing to prove, so a run whose designs elaborate to nothing is
+# indistinguishable from a real pass by exit status or log text. Check EQY's own
+# artifacts for evidence that work was actually done. `partition.list` holds one
+# line per proof obligation EQY built, so an empty one means zero partitions were
+# proved. A "Cannot find first entity" warning names a match line that resolved
+# to no signal on the elaborated design, so that line constrained nothing.
+# Usage: check_fev_proved <job> <fev_name> <fail_status>
+function check_fev_proved() {
+  local job="$1"
+  local fev_name="$2"
+  local fail_status="$3"
+  local fev_out_dir="${TEMP_DIR}/${fev_name}"
+  local eqy_file="${TEMP_MATCH_DIR}/${fev_name}.eqy"
+  local eqy_log="${TEMP_DIR}/${job}.log"
+
+  local partitions=0
+  if [[ -f "${fev_out_dir}/partition.list" ]]; then
+    partitions=$(grep -c . "${fev_out_dir}/partition.list")
+  fi
+  local matches=0
+  if [[ -f "$eqy_file" ]]; then
+    matches=$(grep -c "^gold-match " "$eqy_file")
+  fi
+  local unresolved=0
+  if [[ -f "$eqy_log" ]]; then
+    unresolved=$(grep -c "Cannot find first entity" "$eqy_log")
+  fi
+
+  if [[ $partitions -eq 0 ]]; then
+    echo
+    echo "Vacuous FEV Analysis:"
+    echo
+    echo "EQY partition list (${fev_out_dir}/partition.list) is empty: zero partitions proved."
+    echo "${unresolved} of ${matches} match entities could not be found on the elaborated design."
+    echo "EQY log can be found in: ${eqy_log}"
+    echo "Elaboration logs: ${fev_out_dir}/gold.log and ${fev_out_dir}/gate.log"
+    echo
+    fail "$fail_status" "EQY reported success for ${fev_name} but proved zero partitions, so nothing was verified. This is a vacuous proof, not a pass. EQY creates one partition per signal it has to compare, so an empty partition list means the gold and gate designs both elaborated to an empty module. The usual cause is a module body wrapped in an \`ifdef\` that this flow never defines (\`RISCV_FORMAL\` in the SERV sources, for example), so both sides compile away to nothing; a \`prep -top\` name in ${fev_name}.eqy that does not match the module has the same effect. Read ${fev_out_dir}/gold.log and ${fev_out_dir}/gate.log to see what was elaborated, then either define the macro on the read_verilog lines in the [gold] and [gate] sections of ${fev_name}.eqy (e.g. \`read_verilog -sv -formal -DRISCV_FORMAL prepared.sv\`) or correct the top module name, and rerun."
+  fi
+
+  if [[ $matches -gt 0 && $unresolved -ge $matches ]]; then
+    echo
+    echo "Vacuous FEV Analysis:"
+    echo
+    echo "None of the ${matches} match entities in ${fev_name}.eqy resolved to a signal."
+    echo "EQY log can be found in: ${eqy_log}"
+    echo "Elaboration logs: ${fev_out_dir}/gold.log and ${fev_out_dir}/gate.log"
+    echo
+    fail "$fail_status" "EQY could not find any of the ${matches} match entities for ${fev_name} on the elaborated design, so every match line was dropped and the ${partitions} partition(s) it did prove came from EQY's own partitioning, not from the match list. A match list that resolves to nothing usually means the design under [gold] or [gate] is not the one the match list was written against: a module body compiled away by an undefined \`ifdef\` (\`RISCV_FORMAL\` in the SERV sources, for example), a wrong \`prep -top\` name, or a match section carried over from another module. Read ${fev_out_dir}/gold.log to see what was elaborated, then fix ${fev_name}.eqy (define the macro, correct the top name, or rewrite the match lines against the real signal names) and rerun."
+  fi
+
+  if [[ $unresolved -gt 0 ]]; then
+    echo
+    echo "WARNING: EQY could not find ${unresolved} of the ${matches} match entities for ${fev_name} on the elaborated design:"
+    grep "Cannot find first entity" "$eqy_log" | sed 's/^.*Warning: //'
+    echo "Those match lines were dropped, so they constrained nothing in this run."
+    echo "A signal that this configuration's parameters legitimately remove is expected here."
+    echo "Any other name is stale or misspelled in ${fev_name}.eqy and weakens the proof."
+    echo
+  fi
+}
+
+
 # A variant of run_tool specialized for eqy commands.
 function run_fev() {
   local job="$1"
@@ -260,6 +324,8 @@ function run_fev() {
     if [[ $job != "incremental_fev" ]]; then
       echo "Fix FEV failures before further refactoring. See 'instructions/full_fev_failed.md' for guidance."
     fi
+  else
+    check_fev_proved "$job" "$fev_name" "$fail_status"
   fi
   return $status
 }
