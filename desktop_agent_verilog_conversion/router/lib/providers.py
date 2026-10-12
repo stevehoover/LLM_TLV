@@ -36,7 +36,12 @@ def call(provider, user, system=None):
         req = urllib.request.Request("https://api.deepseek.com/chat/completions",
             data=json.dumps({"model": config.MODEL_NAME["deepseek"],
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": common + stable + fb}],
-                "max_tokens": 16000, "temperature": 0.2}).encode(),
+                # deepseek's thinking mode (on by default) spends reasoning
+                # tokens out of this same budget: a whole-file rewrite of a
+                # ~180-line module plus its eqy files reasoned past 16000
+                # twice and returned no content at all, so the budget is
+                # sized for reasoning plus the reply.
+                "max_tokens": 32000, "temperature": 0.2}).encode(),
             headers={"Content-Type": "application/json",
                      "Authorization": "Bearer " + key})
         d = json.load(urllib.request.urlopen(req, timeout=300))
@@ -61,7 +66,7 @@ def call(provider, user, system=None):
         if fb:
             content.append({"type": "text", "text": fb})
         req = urllib.request.Request("https://api.anthropic.com/v1/messages",
-            data=json.dumps({"model": config.MODEL_NAME["claude"], "max_tokens": 8000, "system": system,
+            data=json.dumps({"model": config.MODEL_NAME["claude"], "max_tokens": 16000, "system": system,
                 "messages": [{"role": "user", "content": content}]}).encode(),
             headers={"Content-Type": "application/json", "x-api-key": key,
                      "anthropic-version": "2023-06-01"})
