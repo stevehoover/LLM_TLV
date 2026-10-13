@@ -40,5 +40,6 @@ RUN pip3 install --break-system-packages sandpiper-saas==1.1.0
 # HOME=/tmp lets the container run as any uid (docker run -u), and the touched
 # file pre-accepts the Makerchip terms of service so sandpiper-saas does not
 # block on an interactive prompt in headless runs.
+ENV PATH=/opt/oss-cad-suite/bin:$PATH
 ENV HOME=/tmp
 RUN touch /tmp/.makerchip_accepted
