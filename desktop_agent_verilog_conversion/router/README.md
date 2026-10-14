@@ -17,9 +17,8 @@ Genuinely shared:
   instruction updates land in both flows without duplication.
 - `../scripts/fev.sh` and the other scripts run inside the container through
   each module dir's `scripts/` link; the router never carries its own copy.
-- The Docker toolchain image is built from
-  `../conversion_setup/env/Dockerfile.fev` (or the full agent image from
-  `Dockerfile` in the same directory).
+- The Docker toolchain image the router runs fev.sh in is built from
+  `../conversion_setup/env/Dockerfile.fev` (see Setup).
 
 Router-specific: the routing loop (`router.py` + `lib/`), per-task judge
 criteria (`checks/`), a reference hint set (`hints_examples/`), a `timeout`
@@ -65,15 +64,31 @@ request for the complete file.
    - `~/.secrets/deepseek_key` (or MM_DEEPSEEK_KEY_FILE)
    - `~/.secrets/anthropic_key` (or MM_ANTHROPIC_KEY_FILE); also used by the
      judge, so needed even when the worker is deepseek or the agent.
-2. The toolchain docker image, from this repo:
+2. The toolchain docker image. For the router, build `Dockerfile.fev` and
+   tag it `mm-convert:latest` (the default MM_DOCKER_IMAGE):
    `cd desktop_agent_verilog_conversion/conversion_setup/env && docker build -f Dockerfile.fev -t mm-convert:latest .`
+   This is the image to build. It holds only the FEV toolchain (SandPiper,
+   Yosys, EQY, sby, jq) and builds on x64 and arm64. The Dockerfile.fev
+   header says it is not the agent container; that is correct, the router
+   does not need one. `Dockerfile` in the same directory is the agent image
+   for the desktop agent flow (Claude Code inside Docker). Build that one
+   only if you run that flow. It also carries the FEV tools, so you can point
+   the router at it with MM_DOCKER_IMAGE instead of building a second image,
+   but its OSS CAD Suite download is x64 only.
 3. A checkout of the Verilog project with tlv/<module> work dirs (each work
    dir holds wip.tlv, fev.eqy, config.json, orig.sv, prepared.sv and a
    scripts/ link into this repo). MM_LLMTLV_DIR defaults to this repo, the
    one containing the router.
 
 The router preflights all of this and fails fast with a clear message if a
-key file, the docker image, fev.sh, or the agent CLI is missing.
+key file, the docker image, fev.sh, or the agent CLI is missing. Once the
+image is found, preflight starts one container with the same mounts the
+FEV run uses and checks that `scripts/fev.sh` resolves there and that
+sandpiper-saas, eqy, sby, yosys and jq are on the PATH. A `scripts` link
+must point at the LLM_TLV mount inside the container,
+`/home/steve/repos/LLM_TLV/desktop_agent_verilog_conversion/scripts`; a
+link to a host path, or to the directory one level above `scripts`, passes
+on the host but fails here.
 
 ## Run
 
