@@ -17,6 +17,7 @@ from . import config
 from .accounting import track
 from .config import ACCEPT_DISTINCT, ACCEPT_GLOB, MODEL_NAME
 from .providers import call_with_retry
+from .workspace import snap
 
 JUDGE_SYSTEM = (
     "You are a strict, skeptical hardware-refactoring reviewer. Formal equivalence "
@@ -53,7 +54,21 @@ def write_judge_record(tname, passed, reason, cost_usd):
                    "task": tname}, f, indent=1)
 
 
-def judge(tname, task, before, after, justification=None, nochange=False):
+# Every file the worker changed in the attempt, other than wip.tlv (which
+# the before/after blocks already show), rendered under its own heading so
+# the judge reviews eqy and config edits rather than trusting the validator
+# and FEV alone (a real run showed the judge reasoning from wip.tlv only).
+def changed_files_block(changed):
+    others = [n for n in (changed or []) if n != "wip.tlv"]
+    if not others:
+        return ""
+    u = "\n# Other files the worker changed in this attempt\n"
+    for n in others:
+        u += f"\n===FILE: {n} AFTER the task===\n" + snap(n) + "\n===END===\n"
+    return u
+
+
+def judge(tname, task, before, after, justification=None, nochange=False, changed=None):
     check_path = os.path.join(os.environ.get("MM_CHECKS", os.path.join(config.ROUTER_DIR, "checks")),
                               re.sub(r"[^A-Za-z0-9]+", "_", tname) + ".txt")
     u = "# Refactoring task that was performed\n\n" + task + "\n"
@@ -69,6 +84,7 @@ def judge(tname, task, before, after, justification=None, nochange=False):
     else:
         u += "\n===FILE: wip.tlv BEFORE the task===\n" + before + "\n===END===\n"
         u += "\n===FILE: wip.tlv AFTER the task===\n" + after + "\n===END===\n"
+    u += changed_files_block(changed)
     if justification:
         u += ("\n# The refactoring agent's justification for any remaining incompleteness\n\n"
               + justification + "\n\nAccept this only if it is specific and technically sound "

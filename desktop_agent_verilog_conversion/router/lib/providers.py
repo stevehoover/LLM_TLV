@@ -44,7 +44,8 @@ def call(provider, user, system=None):
         usage = {"in": u.get("prompt_cache_miss_tokens", u.get("prompt_tokens", 0)),
                  "out": u.get("completion_tokens", 0),
                  "cache_read": u.get("prompt_cache_hit_tokens", 0),
-                 "cache_write": 0}
+                 "cache_write": 0,
+                 "stop": d["choices"][0].get("finish_reason") or ""}
         msg = d["choices"][0]["message"]
         content = msg.get("content") or ""
         if not content:
@@ -69,8 +70,28 @@ def call(provider, user, system=None):
         u = d.get("usage", {})
         usage = {"in": u.get("input_tokens", 0), "out": u.get("output_tokens", 0),
                  "cache_read": u.get("cache_read_input_tokens", 0),
-                 "cache_write": u.get("cache_creation_input_tokens", 0)}
+                 "cache_write": u.get("cache_creation_input_tokens", 0),
+                 "stop": d.get("stop_reason") or ""}
         return d["content"][0]["text"], usage
+
+
+# The provider's own stop signal: Anthropic reports stop_reason "max_tokens"
+# and OpenAI-style APIs (deepseek) finish_reason "length" when the reply hit
+# the output budget mid-file. A cut reply is recoverable, not malformed, so
+# the loop must never hand it to apply_files.
+def truncated(usage):
+    return usage.get("stop") in ("max_tokens", "length")
+
+
+# Feedback for the attempt after a truncated reply: say where it was cut and
+# how to fit the same edit, so the model does not just resend the same
+# oversized reply and lose another attempt.
+def truncation_feedback(usage):
+    return (f"Your previous reply was cut off by the output token limit after "
+            f"{usage.get('out', 0)} tokens (stop reason: {usage.get('stop')}), so nothing "
+            "was applied. Resend the same edit, but use \"...\" omission lines for every "
+            "unchanged region of each file so the reply fits. If a whole file changes, "
+            "send it in full, with no commentary or explanation around the file blocks.")
 
 
 def run_agent_worker(task_text, feedback):

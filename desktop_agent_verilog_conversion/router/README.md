@@ -46,6 +46,8 @@ not references, so an edit there must be mirrored here.
   (HARNESS_FILES blocklist).
 - An oversight judge (separate LLM call, skeptical system prompt) checks the
   refactoring INTENT after FEV passes; its FAIL reason feeds the retry loop.
+  The judge sees wip.tlv before and after plus every other file the worker
+  changed in that attempt, each under its own heading.
 - NO_CHANGE claims are cross-checked by the next provider, then judged.
 - MM_ACCEPT_GLOB / MM_ACCEPT_DISTINCT block the observed work-dodging moves
   (no files created; per-config designs byte-identical).
@@ -57,7 +59,10 @@ Workers reply with whole files in `===FILE:`/`===END===` blocks, using the
 dots omission format: a line containing exactly `...` stands for an
 unchanged region of the original file, applied by diff alignment. An
 ambiguous `...` (mixed with changed lines in one region) fails soft to a
-request for the complete file.
+request for the complete file. A reply the provider cut at its output
+limit is never applied: the next attempt is told the reply was truncated
+at N tokens and to use `...` omissions, and attempts.jsonl records the
+provider's stop reason.
 
 ## Setup
 
@@ -85,11 +90,12 @@ MM_PROVIDERS="deepseek:2,claude:6" \
 python3 desktop_agent_verilog_conversion/router/router.py /path/to/serv/tlv/<module_dir>
 ```
 
-Tests, both dependency-free:
+Tests, all dependency-free:
 
 ```
 python3 tests.py        # parser cases for the edit format
 python3 smoke_test.py   # imports every module, exercises preflight
+python3 loop_test.py    # judge context and retry loop against fake providers
 ```
 
 The router resumes: completed tasks and the in-flight attempt budget live in

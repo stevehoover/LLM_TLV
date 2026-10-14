@@ -58,9 +58,10 @@ def log_unparsed(tname, tag, resp):
 # attempt's full reply plus the feedback it was given, one JSON line each, so
 # the Console can show the exact exchange after the fact. Conversations are
 # otherwise stateless and unrecoverable.
-def log_attempt_exchange(tname, provider, n, feedback_in, reply, cost):
+def log_attempt_exchange(tname, provider, n, feedback_in, reply, cost, stop=""):
     rec = {"ts": time.strftime("%Y-%m-%d %H:%M:%S"), "task": tname,
            "provider": provider, "attempt": n,
-           "feedback_in": feedback_in or "", "reply": reply, "cost_usd": round(cost, 4)}
+           "feedback_in": feedback_in or "", "reply": reply, "cost_usd": round(cost, 4),
+           "stop_reason": stop or ""}
     with open(os.path.join(config.MDIR, "attempts.jsonl"), "a") as f:
         f.write(json.dumps(rec) + "\n")
