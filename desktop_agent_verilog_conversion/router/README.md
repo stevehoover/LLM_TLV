@@ -109,6 +109,7 @@ The implementation lives in `lib/`, one concern per module:
 | lib/providers.py | deepseek/claude API calls with caching and retry, plus the Claude Code agent worker |
 | lib/edits.py | edit-format parsing and applying: dots omissions, NO_CHANGE, justifications |
 | lib/fev.py | docker invocation of the shared fev.sh and SandPiper error-context enrichment |
+| lib/srcmap.py | maps generated-Verilog line references in yosys/EQY/SandPiper messages back to the TLV line that produced them, using SandPiper's `\source` and `` `line `` markers, and quotes that TLV source in the feedback |
 | lib/judge.py | the oversight judge, judge.json records, and the acceptance checks |
 | lib/workspace.py | module-dir file access, status.json, attempts.jsonl and unparsed-reply logging |
 | lib/accounting.py | cost and cache tracking, spend caps, run summary |
