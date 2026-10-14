@@ -5,7 +5,7 @@ import os
 import re
 import time
 
-from . import accounting, config, edits, state
+from . import accounting, config, edits, plan_context, state
 from .accounting import cache_str, print_summary, track
 from .config import ACCEPT_GLOB, JUDGE_ON, MODEL_NAME, PROVIDERS
 from .edits import apply_files, extract_justification, is_no_change, restore
@@ -20,6 +20,19 @@ from .workspace import (log_attempt_exchange, log_unparsed, revert,
 SCRIPT_TASKS = {"No Tabs": "./scripts/no_tabs.py 2>&1"}
 
 
+def build_task(tname, tfile):
+    task = open(tfile).read()
+    hint_path = os.path.join(os.environ.get("MM_HINTS", os.path.join(config.ROUTER_DIR, "hints")),
+                             re.sub(r"[^A-Za-z0-9]+", "_", tname) + ".txt")
+    hinted = os.path.exists(hint_path)
+    if hinted:
+        task += "\n\n# Additional guidance for this task\n\n" + open(hint_path).read()
+    planned = plan_context.for_task(tname)
+    if planned:
+        task += "\n\n" + plan_context.HEADING + "\n\n" + planned
+    return task, hinted, planned
+
+
 def main():
     ORDER = config.load_order()
     done_tasks, inflight = state.load(config.MDIR)
@@ -29,13 +42,11 @@ def main():
             print(f"##### TASK: {tname} (previously completed: {done_tasks[tname]}, skip)")
             accounting.stats.append((tname, done_tasks[tname] + " (prior)"))
             continue
-        task = open(tfile).read()
-        hint_path = os.path.join(os.environ.get("MM_HINTS", os.path.join(config.ROUTER_DIR, "hints")),
-                                 re.sub(r"[^A-Za-z0-9]+", "_", tname) + ".txt")
-        hinted = os.path.exists(hint_path)
-        if hinted:
-            task += "\n\n# Additional guidance for this task\n\n" + open(hint_path).read()
-        print(f"\n##### TASK: {tname} [{time.strftime('%H:%M:%S')}]" + (" (with hint)" if hinted else ""))
+        task, hinted, planned = build_task(tname, tfile)
+        marks = ["with hint"] if hinted else []
+        marks += ["with plan"] if planned else []
+        print(f"\n##### TASK: {tname} [{time.strftime('%H:%M:%S')}]"
+              + (" (" + ", ".join(marks) + ")" if marks else ""))
         set_status_fields(task=tname)
         done = False
         used = None

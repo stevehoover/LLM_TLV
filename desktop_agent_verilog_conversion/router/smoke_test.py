@@ -21,8 +21,8 @@ os.environ["MM_PROVIDERS"] = "deepseek:1,agent:1"
 os.environ.pop("MM_ORDER", None)
 os.environ.pop("MM_COMMON_GUIDE", None)
 
-from lib import (accounting, config, edits, fev, judge, preflight, prompts,
-                 providers, runner, state, workspace)
+from lib import (accounting, config, edits, fev, judge, plan_context, preflight,
+                 prompts, providers, runner, state, workspace)
 
 failures = []
 
@@ -41,6 +41,12 @@ order = config.load_order()
 check(len(order) == 27, f"default order.json lists {len(order)} tasks, expected 27")
 check(all(os.path.isfile(path) for _, path in order),
       "a task file named in the default order.json does not exist")
+
+check(plan_context.plan_path() is None,
+      "combining-plan lookup found a plan with no MDIR set; it must yield nothing")
+check(runner.build_task("Combine Repeated Logic", dict(order)["Combine Repeated Logic"])[0]
+      == open(dict(order)["Combine Repeated Logic"]).read(),
+      "with no plan file the combining task prompt is not the bare task file")
 
 check(prompts.COMMON.startswith("# TL-Verilog language reference"),
       "COMMON guide did not compose from guide_preamble.md + shared "
@@ -68,4 +74,4 @@ for line in failures:
 if failures:
     print("smoke test FAILED")
     sys.exit(1)
-print("smoke test passed (11 modules imported, preflight reported the broken environment)")
+print("smoke test passed (12 modules imported, preflight reported the broken environment)")

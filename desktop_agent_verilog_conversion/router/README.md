@@ -85,11 +85,13 @@ MM_PROVIDERS="deepseek:2,claude:6" \
 python3 desktop_agent_verilog_conversion/router/router.py /path/to/serv/tlv/<module_dir>
 ```
 
-Tests, both dependency-free:
+Tests, all dependency-free:
 
 ```
-python3 tests.py        # parser cases for the edit format
-python3 smoke_test.py   # imports every module, exercises preflight
+python3 tests.py          # parser cases for the edit format
+python3 smoke_test.py     # imports every module, exercises preflight
+python3 plan_test.py      # the combining-plan pre-step on a fake design
+python3 plan_wire_test.py # the combining tasks consuming that plan
 ```
 
 The router resumes: completed tasks and the in-flight attempt budget live in
@@ -110,6 +112,7 @@ The implementation lives in `lib/`, one concern per module:
 | lib/edits.py | edit-format parsing and applying: dots omissions, NO_CHANGE, justifications |
 | lib/fev.py | docker invocation of the shared fev.sh and SandPiper error-context enrichment |
 | lib/judge.py | the oversight judge, judge.json records, and the acceptance checks |
+| lib/plan_context.py | combining-plan lookup for the current module and the prompt block that carries the decision |
 | lib/workspace.py | module-dir file access, status.json, attempts.jsonl and unparsed-reply logging |
 | lib/accounting.py | cost and cache tracking, spend caps, run summary |
 | lib/state.py | e6_state.json load/save for resume |
@@ -125,6 +128,8 @@ The implementation lives in `lib/`, one concern per module:
 | MM_JUDGE | 1 | oversight judge on/off |
 | MM_CHECKS | router/checks | per-task judge criteria files |
 | MM_HINTS | router/hints | per-task hint files, appended to the task prompt; filename = task name with every non-alphanumeric run replaced by `_`, plus `.txt` (e.g. `Non_vector_Signals.txt`) |
+| MM_PLAN | (found from the module dir) | combining_plan.json path, or a directory holding it |
+| MM_PLAN_TASKS | Combine Repeated Logic,Inline Child Macros | tasks whose prompt carries the module's plan entry |
 | MM_COMMON_GUIDE | (composed) | a single prebuilt guide file, replacing the default composition from the shared instructions |
 | MM_ACCEPT_GLOB | (off) | glob whose match count must increase during the task |
 | MM_ACCEPT_DISTINCT | (off) | 1 = per-config wip_*.sv must differ |
@@ -177,10 +182,17 @@ The accepted plan is persisted as collateral in the design dir (or
 `--out`): `combining_plan.json` records per-module strategy,
 instantiation count, reason, and whether the user overrode it, plus the
 synthesis boundaries; `combining_plan.md` is the same content readable.
-The combining tasks (Combine Repeated Logic / Inline Child Macros)
-consult this file for the strategy to apply to each module.
 
-Test: `python3 plan_test.py` (self-contained, no network).
+The combining tasks (Combine Repeated Logic, Inline Child Macros) consume
+that file. The router finds the plan for the module it is converting by
+walking up from the module work dir to the design root (MM_PLAN pins a path
+instead) and appends the module's entry, strategy and reason, to the task
+prompt under its own heading, the way a hint file is appended. The worker is
+told the decision rather than asked to make one, and the run log marks the
+task `(with plan)`. With no plan file the prompt is unchanged.
+
+Tests: `python3 plan_test.py`, `python3 plan_wire_test.py` (self-contained,
+no network).
 
 ## Hints: the ratchet
 
