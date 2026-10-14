@@ -105,6 +105,13 @@ If the input reset signal is negatively asserted, create an internal positively-
 
 Unless you had to establish a new baseline `prepared.sv` model, there should be no interface changes for this (or any subsequent) task. `reset` can be created from the reset input as an internal signal, not by changing the interface.
 
+**Timing: add this during initial setup:**
+Add the clock bridge (`wire clk = <port_name>;`) in the `\SV` block
+immediately during initial setup, even before any `\TLV` content is added.
+Do NOT wait until SandPiper errors on a missing `clk` signal. The first
+time any `>>1$signal` is written, SandPiper emits `always_ff @(posedge clk)`.
+If `clk` is not yet declared, you will get an unresolved signal error
+mid-conversion. Adding the bridge at setup time prevents this entirely.
 
 ## Task: Simplify Code Generation
 
