@@ -19,6 +19,12 @@ from .workspace import (log_attempt_exchange, log_unparsed, revert,
 # Tasks that are deterministic scripts run directly, costing no API call.
 SCRIPT_TASKS = {"No Tabs": "./scripts/no_tabs.py 2>&1"}
 
+# Tasks whose work is M5 text construction get the shared M5 idioms reference
+# appended to the task text (cache breakpoint 2, so retries still hit cache).
+M5_TASKS = {"Define M5 Configurations", "Configure Using M5", "TLV Macro",
+            "Combine Repeated Logic", "Inline Child Macros"}
+M5_IDIOMS = os.path.join(config.CONVERSION_DIR, "instructions", "m5_idioms.md")
+
 
 def main():
     ORDER = config.load_order()
@@ -35,6 +41,8 @@ def main():
         hinted = os.path.exists(hint_path)
         if hinted:
             task += "\n\n# Additional guidance for this task\n\n" + open(hint_path).read()
+        if tname in M5_TASKS and os.path.exists(M5_IDIOMS):
+            task += "\n\n# M5 idioms reference (instructions/m5_idioms.md)\n\n" + open(M5_IDIOMS).read()
         print(f"\n##### TASK: {tname} [{time.strftime('%H:%M:%S')}]" + (" (with hint)" if hinted else ""))
         set_status_fields(task=tname)
         done = False

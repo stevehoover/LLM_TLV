@@ -15,6 +15,9 @@ Genuinely shared:
   `guide_preamble.md` (the worker's role in the routed flow) and
   `guide_appendix.md` (a condensed TL-Verilog reference) at startup, so
   instruction updates land in both flows without duplication.
+- `../instructions/m5_idioms.md` is appended to the task text of the five
+  M5 tasks (`M5_TASKS` in `lib/runner.py`), the same hook the per-task hints
+  use, so only the tasks that construct code with M5 pay for it.
 - `../scripts/fev.sh` and the other scripts run inside the container through
   each module dir's `scripts/` link; the router never carries its own copy.
 - The Docker toolchain image is built from

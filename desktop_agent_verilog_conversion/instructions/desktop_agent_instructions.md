@@ -117,7 +117,7 @@ The first conversion task prepares the conversion process. A little initial code
 
 The file structure is immediately converted to TLV file format, initially with everything in an `\SV` block. This is then converted to an `\SV_plus` block and signals are converted to pipesignals. Logic is pulled from the `\SV_plus` region and converted to `\TLV` expressions. Then code is organized into pipelines and pipestages, design hierarchy and/or transaction flow (`$ANY`) may be introduced.
 
-The file `instructions/conversion_tasks.md` contains detailed instructions for all tasks. Instead of reading `instructions/conversion_tasks.md` directly, use the script `./scripts/get_task.py`.
+The file `instructions/conversion_tasks.md` contains detailed instructions for all tasks. Instead of reading `instructions/conversion_tasks.md` directly, use the script `./scripts/get_task.py`. For the tasks that construct code with M5 (Define M5 Configurations, Configure Using M5, TLV Macro, Combine Repeated Logic, Inline Child Macros), read `instructions/m5_idioms.md` first; it gives the exact syntax of the M5 constructs the conversions rely on, several of which are not in the M5 documents.
 
 `get_task.py` Usage:
 

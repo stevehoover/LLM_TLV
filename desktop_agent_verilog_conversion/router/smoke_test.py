@@ -47,6 +47,8 @@ check(prompts.COMMON.startswith("# TL-Verilog language reference"),
       "instructions/desktop_agent_instructions.md + guide_appendix.md")
 check("NOTE ON YOUR ROLE IN THIS FLOW" in prompts.COMMON,
       "COMMON guide is missing the router-role preamble")
+check(os.path.isfile(runner.M5_IDIOMS),
+      f"{runner.M5_IDIOMS} is missing; the M5 tasks would run without the idioms reference")
 
 with tempfile.TemporaryDirectory() as mdir:
     config.init(mdir)
