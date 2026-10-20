@@ -60,6 +60,13 @@ DOCKER_USER = os.environ.get("MM_DOCKER_USER", "")
 
 JUDGE_ON = os.environ.get("MM_JUDGE", "1") == "1"
 
+# Combining plan (plan.py collateral). MM_PLAN pins the plan file or its
+# directory; empty means "find it from the module dir". PLAN_TASKS names the
+# tasks whose prompt carries the plan entry for the module being converted.
+PLAN = os.environ.get("MM_PLAN", "")
+PLAN_TASKS = tuple(x.strip() for x in os.environ.get(
+    "MM_PLAN_TASKS", "Combine Repeated Logic,Inline Child Macros").split(",") if x.strip())
+
 # Acceptance criterion beyond FEV (blocks "dodge by creating no files"):
 # MM_ACCEPT_GLOB names a glob whose match count must INCREASE during the task.
 ACCEPT_GLOB = os.environ.get("MM_ACCEPT_GLOB", "")

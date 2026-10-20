@@ -6,6 +6,39 @@ equivalence checking as the only gate. This is the primary conversion
 workflow; the desktop agent flow described in `../README.md` remains
 supported.
 
+## The flow, end to end
+
+Converting a design has two levels: one planning pass over the whole
+design, then one router run per module.
+
+1. Plan the design (once). `plan.py` reads the design's Verilog, finds every
+   module and who instantiates whom, and decides for each module whether it
+   stays a module, becomes a TLV macro, or is inlined into its parent. You
+   review that proposal and override anything you disagree with. The result
+   is saved as `combining_plan.json` in the design dir. Details are in
+   "Hierarchy combining plan" below.
+2. Prepare each module. `prep.sh` creates the module's work dir under
+   `tlv/<module>` (the Preparation task in `../instructions/conversion_tasks.md`).
+3. Convert modules bottom up. Children are converted before the parents that
+   instantiate them. For now you choose that order by hand and start one
+   router run per module. `plan.py` already works out who instantiates
+   whom, so a later step can derive the order from it.
+4. Inside one router run, the tasks in `tasks/order.json` run in order. For
+   each task the router builds the prompt (the common guide, the task text,
+   the module's current files, plus a hint file if one exists and, for the
+   combining tasks, this module's entry from `combining_plan.json`), calls
+   the cheap model, applies the reply, and runs fev.sh. A task advances only
+   when FEV passes and the judge agrees the task's goal was met. Otherwise
+   the failure goes back to the model as feedback, and after the cheap
+   model's attempts are used up the task escalates to the stronger model.
+5. The combining tasks near the end of the list (Combine Repeated Logic,
+   Inline Child Macros) are where the plan from step 1 takes effect: the
+   worker is told what the plan decided for this module instead of deciding
+   it on its own.
+6. When every task has passed, the module's `fully_feved.tlv` is the
+   converted result, and the full FEV against the original Verilog is the
+   proof that it is equivalent.
+
 ## Relationship to the desktop agent flow
 
 Genuinely shared:
@@ -111,9 +144,11 @@ python3 desktop_agent_verilog_conversion/router/router.py /path/to/serv/tlv/<mod
 Tests, all dependency-free:
 
 ```
-python3 tests.py        # parser cases for the edit format
-python3 smoke_test.py   # imports every module, exercises preflight
-python3 loop_test.py    # judge context and retry loop against fake providers
+python3 tests.py          # parser cases for the edit format
+python3 smoke_test.py     # imports every module, exercises preflight
+python3 loop_test.py      # judge context and retry loop against fake providers
+python3 plan_test.py      # the combining-plan pre-step on a fake design
+python3 plan_wire_test.py # the combining tasks consuming that plan
 ```
 
 The router resumes: completed tasks and the in-flight attempt budget live in
@@ -134,6 +169,7 @@ The implementation lives in `lib/`, one concern per module:
 | lib/edits.py | edit-format parsing and applying: dots omissions, NO_CHANGE, justifications |
 | lib/fev.py | docker invocation of the shared fev.sh and SandPiper error-context enrichment |
 | lib/judge.py | the oversight judge, judge.json records, and the acceptance checks |
+| lib/plan_context.py | combining-plan lookup for the current module and the prompt block that carries the decision |
 | lib/workspace.py | module-dir file access, status.json, attempts.jsonl and unparsed-reply logging |
 | lib/accounting.py | cost and cache tracking, spend caps, run summary |
 | lib/state.py | e6_state.json load/save for resume |
@@ -149,6 +185,8 @@ The implementation lives in `lib/`, one concern per module:
 | MM_JUDGE | 1 | oversight judge on/off |
 | MM_CHECKS | router/checks | per-task judge criteria files |
 | MM_HINTS | router/hints | per-task hint files, appended to the task prompt; filename = task name with every non-alphanumeric run replaced by `_`, plus `.txt` (e.g. `Non_vector_Signals.txt`) |
+| MM_PLAN | (found from the module dir) | combining_plan.json path, or a directory holding it |
+| MM_PLAN_TASKS | Combine Repeated Logic,Inline Child Macros | tasks whose prompt carries the module's plan entry |
 | MM_COMMON_GUIDE | (composed) | a single prebuilt guide file, replacing the default composition from the shared instructions |
 | MM_ACCEPT_GLOB | (off) | glob whose match count must increase during the task |
 | MM_ACCEPT_DISTINCT | (off) | 1 = per-config wip_*.sv must differ |
@@ -201,10 +239,17 @@ The accepted plan is persisted as collateral in the design dir (or
 `--out`): `combining_plan.json` records per-module strategy,
 instantiation count, reason, and whether the user overrode it, plus the
 synthesis boundaries; `combining_plan.md` is the same content readable.
-The combining tasks (Combine Repeated Logic / Inline Child Macros)
-consult this file for the strategy to apply to each module.
 
-Test: `python3 plan_test.py` (self-contained, no network).
+The combining tasks (Combine Repeated Logic, Inline Child Macros) consume
+that file. The router finds the plan for the module it is converting by
+walking up from the module work dir to the design root (MM_PLAN pins a path
+instead) and appends the module's entry, strategy and reason, to the task
+prompt under its own heading, the way a hint file is appended. The worker is
+told the decision rather than asked to make one, and the run log marks the
+task `(with plan)`. With no plan file the prompt is unchanged.
+
+Tests: `python3 plan_test.py`, `python3 plan_wire_test.py` (self-contained,
+no network).
 
 ## Hints: the ratchet
 
