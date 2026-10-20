@@ -6,6 +6,39 @@ equivalence checking as the only gate. This is the primary conversion
 workflow; the desktop agent flow described in `../README.md` remains
 supported.
 
+## The flow, end to end
+
+Converting a design has two levels: one planning pass over the whole
+design, then one router run per module.
+
+1. Plan the design (once). `plan.py` reads the design's Verilog, finds every
+   module and who instantiates whom, and decides for each module whether it
+   stays a module, becomes a TLV macro, or is inlined into its parent. You
+   review that proposal and override anything you disagree with. The result
+   is saved as `combining_plan.json` in the design dir. Details are in
+   "Hierarchy combining plan" below.
+2. Prepare each module. `prep.sh` creates the module's work dir under
+   `tlv/<module>` (the Preparation task in `../instructions/conversion_tasks.md`).
+3. Convert modules bottom up. Children are converted before the parents that
+   instantiate them. For now you choose that order by hand and start one
+   router run per module. `plan.py` already works out who instantiates
+   whom, so a later step can derive the order from it.
+4. Inside one router run, the tasks in `tasks/order.json` run in order. For
+   each task the router builds the prompt (the common guide, the task text,
+   the module's current files, plus a hint file if one exists and, for the
+   combining tasks, this module's entry from `combining_plan.json`), calls
+   the cheap model, applies the reply, and runs fev.sh. A task advances only
+   when FEV passes and the judge agrees the task's goal was met. Otherwise
+   the failure goes back to the model as feedback, and after the cheap
+   model's attempts are used up the task escalates to the stronger model.
+5. The combining tasks near the end of the list (Combine Repeated Logic,
+   Inline Child Macros) are where the plan from step 1 takes effect: the
+   worker is told what the plan decided for this module instead of deciding
+   it on its own.
+6. When every task has passed, the module's `fully_feved.tlv` is the
+   converted result, and the full FEV against the original Verilog is the
+   proof that it is equivalent.
+
 ## Relationship to the desktop agent flow
 
 Genuinely shared:
