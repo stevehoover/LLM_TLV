@@ -181,7 +181,7 @@ function run_sandpiper() {
   fi
   local sv_file="${file}${config_suffix}.sv"
   rm -f ${sv_file}
-  local sp_cmd="sandpiper-saas -i ${file}.tlv -o ${sv_file} ${config_m5def} --inlineGen --noline --iArgs"
+  local sp_cmd="sandpiper-saas -i ${file}.tlv -o ${sv_file} ${config_m5def} --inlineGen --noline --iArgs${SP_FLAT_FLAG}"
   # SandPiper-SaaS is a network service, so a nonzero exit can be a transient
   # server/network error rather than a real input problem. Probe once and retry
   # after a delay before recording a failure.
@@ -457,6 +457,11 @@ if [[ $NEED_FULL_FEV == false || $MISSING_SV == true ]]; then
     if ! jq -e '.M5_configs | type == "object" and (to_entries | all(.value | type == "string"))' config.json > /dev/null 2>&1; then
       fail 2 "Malformed M5_configs in config.json: it must be an OBJECT mapping config names to STRINGS of sandpiper-saas arguments, e.g. {\"W_4\": \"--m5def cond_w_1=0\"}. Fix config.json and rerun."
     fi
+  fi
+
+  SP_FLAT_FLAG=""
+  if jq -e '.fmt_flat_signals == true' config.json > /dev/null 2>&1; then
+    SP_FLAT_FLAG=" --fmtFlatSignals"
   fi
 
   # Run SandPiper on wip.tlv and feved.tlv for all configurations in `config.json`'s `configs` list,

@@ -86,6 +86,7 @@ try:
 except Exception as ex:
     print(f"Could not read M5 configuration from config.json: {ex}")
     M5_configs = {}
+FMT_FLAT_SIGNALS = config_json.get('fmt_flat_signals', False) is True
 # For wip.tlv (eqy_m5_config is ""), use "default_config" from the json. 
 if not eqy_m5_config:
     eqy_m5_config = config_json.get('default_config', "")
@@ -135,6 +136,8 @@ def map_pipesignals(match_lines: list[str], tlv_file: pathlib.Path, eqy_file: st
             'sandpiper-saas', '-i', str(match_tlv), '-o', match_sv_name,
             '--outdir', TEMP_DIR, '--inlineGen', '--noline', '--iArgs'
         ]
+        if FMT_FLAT_SIGNALS:
+            cmd.append('--fmtFlatSignals')
         # Append M5 configuration if provided.
         if m5_config_str:
             cmd.extend(m5_config_str.split())
