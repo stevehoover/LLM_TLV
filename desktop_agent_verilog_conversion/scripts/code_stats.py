@@ -104,6 +104,87 @@ INSTR_RE = re.compile(r"\$(display|monitor|finish|dump\w*|error|fatal|info|warni
 
 TOKEN_RE = re.compile(r"`?[A-Za-z_][A-Za-z_0-9$]*|\d+'[bBhHdDoO][0-9a-fA-FxXzZ_?]+|\d[\d_]*\.?\d*|\"[^\"]*\"|<=|>=|==|!=|&&|\|\||<<|>>|::|[^\sA-Za-z_0-9]")
 
+REF_KEYS = ["tot_lines", "code_lines", "tot", "ws", "comm", "multiline_comm", "code", "phys",
+            "always", "beh", "tlv_beh", "decl", "tlv", "sv"]
+REF_WS_RE = re.compile(r"[ \t\n\r\f\v]")
+REF_COMMENT_START_RE = re.compile(r"(/([*/]).*)$")
+REF_COMMENT_END_RE = re.compile(r"\*/(.*)$")
+REF_OVERHEAD_RE = re.compile(r"(\balways\w*|\bbegin\b|\bend\b|\bassign\b)", re.ASCII)
+REF_TLV_BEH_RE = re.compile(r"\\\w|\|\w|>\w", re.ASCII)
+REF_PHYS_RE = re.compile(r"MSFF|LATCH|_RCB_|_LCB_|CLKBF|@\d", re.ASCII)
+REF_DECL_RE = re.compile(r"node|t_")
+
+
+def iccd_reference_counts(files):
+    c = {k: 0 for k in REF_KEYS}
+    comment = ""
+    for f in files:
+        tlv_mode = False
+        with open(f, "rb") as fh:
+            text = fh.read().decode("latin-1")
+        for line in re.findall(r"[^\n]*\n|[^\n]+$", text):
+            line = line.expandtabs(8)
+            if re.match(r"[ \t\n\r\f\v]*\\TLV", line):
+                tlv_mode = True
+            elif re.match(r"[ \t\n\r\f\v]*\\SV", line) or re.search(r"\\KEEP$", line) or re.search(r"\\MOD$", line):
+                tlv_mode = False
+            line = line[:-1] + " "
+            c["tot_lines"] += 1
+            c["tot"] += len(line)
+            if comment:
+                comment += line
+                m = REF_COMMENT_END_RE.search(comment)
+                if m:
+                    line = m.group(1)
+                    comment = comment[:m.start()] + "*/"
+                    c["comm"] += len(comment)
+                    c["multiline_comm"] += len(comment)
+                    comment = ""
+                else:
+                    c["comm"] += len(comment) - 1
+                    c["multiline_comm"] += len(comment) - 1
+                    comment = " "
+            if comment:
+                continue
+            while True:
+                m = REF_COMMENT_START_RE.search(line)
+                if not m:
+                    break
+                line = line[:m.start()]
+                if m.group(2) == "/":
+                    c["comm"] += len(m.group(1))
+                else:
+                    comment = m.group(1)
+                    e = REF_COMMENT_END_RE.search(comment)
+                    if e:
+                        line += e.group(1)
+                        comment = comment[:e.start()] + "*/"
+                        c["comm"] += len(comment)
+                        comment = ""
+            overhead = 0
+            m = REF_OVERHEAD_RE.search(line)
+            if m:
+                overhead = len(m.group(1))
+                line = line[:m.start()] + line[m.end():]
+            c["ws"] += len(REF_WS_RE.findall(line))
+            line = REF_WS_RE.sub("", line)
+            if line != "" or overhead > 0:
+                c["code_lines"] += 1
+            c["code"] += len(line) + overhead
+            c["always"] += overhead
+            if tlv_mode and REF_TLV_BEH_RE.match(line):
+                c["tlv_beh"] += len(line)
+            elif REF_PHYS_RE.search(line):
+                c["phys"] += len(line)
+            elif REF_DECL_RE.match(line):
+                c["decl"] += len(line)
+            else:
+                c["beh"] += len(line)
+            c["tlv" if tlv_mode else "sv"] += len(line)
+    c["struct"] = c["always"] + c["tlv_beh"]
+    c["comm_ws"] = c["comm"] + c["ws"]
+    return c
+
 
 # Mark comment and whitespace characters. Returns a list with one category per
 # character ("comments", "whitespace", or None for code) and the text with comments
@@ -620,6 +701,10 @@ def ratio(a, b):
     return round(a / b, 3) if b else ""
 
 
+REF_COLUMNS = ["beh", "phys", "struct", "decl", "comm_ws", "tot", "code", "code_lines", "tot_lines",
+               "ws", "comm", "always", "tlv_beh", "tlv", "sv"]
+
+
 def measure(entry, no_gensv):
     v = count_files(entry["verilog"], classify_verilog_file)
     t = count_files(entry["tlv"], classify_tlv_file)
@@ -647,10 +732,35 @@ def measure(entry, no_gensv):
     row["ratio_chars_excl_ws_comments"] = ratio(v["code"], t["code"])
     row["ratio_lines"] = ratio(v["lines_code"], t["lines_code"])
     row["ratio_lines_total"] = ratio(v["lines"], t["lines"])
+    rv = iccd_reference_counts(entry["verilog"])
+    rt = iccd_reference_counts(entry["tlv"])
+    rg = iccd_reference_counts(entry["gensv"]) if g else None
+    for prefix, rc in (("verilog", rv), ("tlv", rt), ("gensv", rg)):
+        for k in REF_COLUMNS:
+            row[prefix + "_ref_" + k] = rc[k] if rc else ""
+    row["ratio_ref_code_chars"] = ratio(rv["code"], rt["code"])
+    row["ratio_ref_code_lines"] = ratio(rv["code_lines"], rt["code_lines"])
     return row
 
 
 def print_table(rows):
+    print("Reference method (port of the ICCD 2017 Perl script; -xl columns beh phys struct decl comm+ws tot):")
+    print("%-18s %8s %8s %6s %8s %8s %6s" % ("module", "V code", "T code", "ratio", "V lines", "T lines", "ratio"))
+    for r in rows:
+        print("%-18s %8d %8d %6s %8d %8d %6s" % (
+            r["module"], r["verilog_ref_code"], r["tlv_ref_code"], r["ratio_ref_code_chars"],
+            r["verilog_ref_code_lines"], r["tlv_ref_code_lines"], r["ratio_ref_code_lines"]))
+    print()
+    print("%-18s %-8s %7s %7s %7s %7s %8s %7s" % ("module", "side", "beh", "phys", "struct", "decl", "comm+ws", "tot"))
+    for r in rows:
+        for side in ("verilog", "tlv", "gensv"):
+            if r[side + "_ref_tot"] == "":
+                continue
+            print("%-18s %-8s %7d %7d %7d %7d %8d %7d" % (
+                r["module"], side, r[side + "_ref_beh"], r[side + "_ref_phys"], r[side + "_ref_struct"],
+                r[side + "_ref_decl"], r[side + "_ref_comm_ws"], r[side + "_ref_tot"]))
+    print()
+    print("Detailed classifier (rules in the file header):")
     hdr = ("module", "V code", "T code", "ratio", "V lines", "T lines", "ratio", "T untouched", "T plumbing", "Gen code")
     print("%-18s %8s %8s %6s %8s %8s %6s %11s %10s %9s" % hdr)
     for r in rows:
