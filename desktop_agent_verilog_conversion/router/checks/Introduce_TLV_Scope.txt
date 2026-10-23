@@ -1,0 +1,20 @@
+- The macro's parameter list is `(/_top, /_name)`, with /_name added after
+  /_top and named per the underscore-prefixed parameter convention.
+- `/_name` is the outermost element of the macro body, and none of the
+  macro's logic is left outside it.
+- References the macro makes to signals in the enclosing context go
+  through /_top; references among the macro's own signals are unchanged.
+- The instantiation passes a scope name, conventionally the module name
+  (`m5+<module_name>(/_top, /<module_name>)`).
+- Every reference from outside to a signal the macro defines reaches into
+  that scope, inside the file and in the module wrapper's interface
+  connections, by a path SandPiper resolves from where it is written: the
+  wrapper's output connections sit in the wrapper's own `|default`, a
+  sibling of the macro's scope under /top, so they read
+  `/top/<module_name>|default<>0$sig` (not `/<module_name>|default<>0$sig`,
+  which is a BAD-SCOPE error there), with `<>0` at the end of the path.
+- In every fev*.eqy match section, the gate-side name of each signal now
+  under the scope carries the scope in its path; gold-side names are
+  untouched.
+- `./scripts/gen_match_lines.py --check` passes for every fev_full*.eqy.
+- The module wrapper and the macro's logic are otherwise unchanged.

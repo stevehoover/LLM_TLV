@@ -1,0 +1,108 @@
+Summary: Give the module's macro a /_name scope parameter and move its logic under that scope.
+
+This step applies after the module's logic lives in its own TLV macro
+(`\TLV <module_name>(/_top)`). Every converted module follows the TLV macro
+block convention: the caller names the scope, the macro opens it, and
+everything the macro defines lives under it. Apply this to every module,
+including ones instantiated only once; the original code drew a module
+boundary here and the scope preserves that structure. If the macro already
+takes /_name and its body is already under that scope, report NO_CHANGE.
+
+The convention, as documented for the `wire` macro:
+
+   // wire(
+   //    /_top:  Top-level scope.
+   //    /_name: A unique level of hierarchy for the instance.
+   //    $_in:   An input pipesignal in /_top scope, optionally with a bit range.
+   //    $_out:  An output signal in /_name with bit range (unless boolean).
+   // Connects an input signal to an output signal.
+   // Should be called within a pipestage.
+   \TLV wire(/_top, /_name, $_in, $_out)
+      /_name
+         $_out = /_top$_in;
+
+   // A sample call in context.
+   \TLV
+      |pipe
+         @1
+            $in_byte[7:0] = ...;
+            m5+wire(|pipe, /connection1, $in_byte1, $out[7:0])
+            $stuff = /connection1$out
+
+Macro parameters are dumb text substitution with no language-level
+namespacing, so the scope is what keeps two instantiations of the same
+macro from colliding: each call passes a different name.
+
+Transform:
+
+1. Add /_name to the macro's parameter list, after /_top, following the
+   underscore-prefixed parameter naming convention:
+   `\TLV <module_name>(/_top, /_name)`.
+2. Make `/_name` the first line of the macro body and indent everything
+   that was in the body one level (3 spaces) beneath it. Pipelines,
+   stages, and logic move under the scope unchanged. No logic stays
+   outside the scope.
+3. References the macro makes to signals in the enclosing context now
+   reach out through /_top (`$sig = /_top$sig;`). References among
+   signals the macro itself defines need no edits; they move with the
+   scope.
+4. The instantiation site passes the name, conventionally the module
+   name: `m5+<module_name>(/_top, /<module_name>)`.
+5. Every reference from outside the macro to a signal the macro defines
+   (the including context, and the module wrapper's interface
+   connections) reaches into the scope by a path SandPiper can resolve
+   from where the reference is written. A scope path resolves relative
+   to the current context: SandPiper looks for its first element as a
+   child or an ancestor of the scope the reference sits in, and nothing
+   else. The macro's scope is a child of /top (the instantiation site),
+   and the wrapper's output connections sit inside the wrapper's own
+   `|default`, so the two are siblings under /top and the reference must
+   climb to the common ancestor: `/top/<module_name>|default<>0$sig`.
+   Writing `/<module_name>|default<>0$sig` from inside the wrapper's
+   `|default` is a BAD-SCOPE error (`Scope "/<module_name>" could not be
+   found as a child or ancestor of scope "|default"`). The output
+   connection block therefore changes from
+
+      |default
+         @0
+            *o_ready = $o_ready;
+            *o_wdata = $o_wdata;
+
+   to
+
+      |default
+         @0
+            *o_ready = /top/<module_name>|default<>0$o_ready;
+            *o_wdata = /top/<module_name>|default<>0$o_wdata;
+
+   with `<>0` at the END of the path, just before the `$` (the alignment
+   marker attaches to the whole path, never to a scope in the middle of
+   it). The same rule applies in the other direction: from inside the
+   macro, a wrapper-side signal is `/_top|default<>0$sig`, since /_top is
+   an ancestor of the macro's scope.
+
+Introducing the scope renames every signal SandPiper generates from the
+macro, so the FEV match lines must follow: in each fev*.eqy match
+section, add the scope to the path of every gate-side name (TL-Verilog
+syntax) for a signal now under the scope (e.g. `|default<>0$rgnt` becomes
+`/rf_ram_if|default<>0$rgnt`; match lines are written from /top, so no
+`/top/` prefix there). The gold side (instance-prefixed names from the
+flattened original Verilog) does not change; do not touch it.
+
+A mechanical cross-check runs before FEV: it regenerates the gate side
+from wip.tlv with SandPiper, enumerates both sides' signals, and rejects
+match lines that name signals that do not exist, or gold state left
+unmatched. A wip.tlv that SandPiper refuses to compile fails the check
+too, with SandPiper's own message (a BAD-SCOPE line names the reference
+and the scope it was made from). If it fails, no FEV run is spent; fix
+the listed disagreements. You can run it yourself as
+`./scripts/gen_match_lines.py --check <fev_full*.eqy>`.
+
+Report in tracker.md which scope name was introduced and how many match
+lines were updated.
+
+Be sure all changes for this task have been completed fully and that
+`./scripts/fev.sh` passes before reviewing
+`instructions/desktop_agent_instructions.md` and running
+`./scripts/get_task.py next`. If the task was not fully successful,
+wrap-up, update the user, and stop working, awaiting user guidance.
