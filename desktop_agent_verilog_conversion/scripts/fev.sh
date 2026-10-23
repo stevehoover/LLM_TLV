@@ -427,6 +427,16 @@ rm -f ./tmp/latest
 ln -s ${TEMP_NAME} ./tmp/latest
 
 
+# Advisory: report parameters of orig.sv that no FEV configuration ever changes from its
+# default, so parameter-dependent logic is not left unverified by accident. Some parameters are
+# legitimately fixed, so this only warns; it never fails the run.
+"${script_dir}/config_coverage.py" --warn-only . > "${TEMP_DIR}/config_coverage.log" 2>&1
+if [[ -s "${TEMP_DIR}/config_coverage.log" ]]; then
+  cat "${TEMP_DIR}/config_coverage.log"
+  echo
+fi
+
+
 # wip.sv should exist if we NEED_FULL_FEV.
 MISSING_SV=false
 if [[ $NEED_FULL_FEV == true && ! -f wip.sv ]]; then
