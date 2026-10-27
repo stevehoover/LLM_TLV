@@ -4,7 +4,7 @@ instantiating child_a once and parameterized child_b twice), runs plan.py
 mechanical-only and non-interactively, and checks the persisted plan.
 Makes no network calls and costs nothing.
 
-Run: python3 plan_test.py
+Run: python3 tests/plan_test.py
 """
 import json
 import os
@@ -12,7 +12,7 @@ import subprocess
 import sys
 import tempfile
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 TOP = """
 module top (input clk, input [7:0] a, output [7:0] y);

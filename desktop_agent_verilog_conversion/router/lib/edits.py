@@ -1,7 +1,7 @@
 """Edit-format parsing and applying: the "..." omission format, NO_CHANGE
 detection, and justification extraction.
 
-tests.py loads the pure parser functions in this file (is_no_change,
+tests/tests.py loads the pure parser functions in this file (is_no_change,
 extract_justification, expand_omissions and their regexes) directly by AST,
 so they must stay top-level and free of imports beyond re/os.
 """

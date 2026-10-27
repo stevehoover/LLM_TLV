@@ -6,14 +6,14 @@ a combining task, its absence for a non-combining task, and that removing the
 plan file restores the exact prompt the router built before. Makes no network
 calls and costs nothing.
 
-Run: python3 plan_wire_test.py
+Run: python3 tests/plan_wire_test.py
 """
 import json
 import os
 import sys
 import tempfile
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
 
 os.environ["MM_DEEPSEEK_KEY_FILE"] = "/nonexistent/deepseek_key"

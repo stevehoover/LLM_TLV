@@ -4,7 +4,7 @@ with fake providers so nothing leaves the machine. Each case sets up a
 throwaway module dir, monkeypatches the provider call, and inspects the
 prompt or the attempts.jsonl record the router wrote.
 
-Run: python3 loop_test.py   (no pytest; prints "N/N cases passed", exit 1 on fail)
+Run: python3 tests/loop_test.py   (no pytest; prints "N/N cases passed", exit 1 on fail)
 """
 import contextlib
 import io
@@ -13,7 +13,7 @@ import os
 import sys
 import tempfile
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
 
 os.environ["MM_DEEPSEEK_KEY_FILE"] = "/nonexistent/deepseek_key"

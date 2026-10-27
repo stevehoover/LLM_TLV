@@ -6,14 +6,14 @@ definitions under test: is_no_change, extract_justification, JUSTIFY_RE,
 expand_omissions. That keeps the tests free of any environment setup
 (no MDIR, no MM_* variables, no network).
 
-Run: python3 tests.py   (no pytest; prints "N/N cases passed", exit 1 on fail)
+Run: python3 tests/tests.py   (no pytest; prints "N/N cases passed", exit 1 on fail)
 """
 import ast
 import os
 import re
 import sys
 
-ROUTER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib", "edits.py")
+ROUTER = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "lib", "edits.py")
 WANTED = {"is_no_change", "extract_justification", "JUSTIFY_RE",
           "expand_omissions", "DOTS_RE"}
 

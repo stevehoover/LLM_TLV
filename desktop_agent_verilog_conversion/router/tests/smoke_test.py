@@ -4,13 +4,13 @@ resolves inside this repo, and run preflight against a deliberately broken
 environment, expecting a graceful PREFLIGHT FAILED report naming each
 missing piece. Makes no network calls and costs nothing.
 
-Run: python3 smoke_test.py
+Run: python3 tests/smoke_test.py
 """
 import os
 import sys
 import tempfile
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, HERE)
 
 os.environ["MM_DEEPSEEK_KEY_FILE"] = "/nonexistent/deepseek_key"
