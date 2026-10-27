@@ -55,6 +55,7 @@ SERV_DIR = os.environ.get("MM_SERV_DIR", os.path.abspath("serv"))
 # the same tree.
 LLMTLV_DIR = os.environ.get("MM_LLMTLV_DIR", REPO_DIR)
 TOOLSHIM_DIR = os.environ.get("MM_TOOLSHIM_DIR", os.path.join(ROUTER_DIR, "toolshim"))
+FEV_TIMEOUT = int(os.environ.get("MM_FEV_TIMEOUT", "3600"))
 DOCKER_IMAGE = os.environ.get("MM_DOCKER_IMAGE", "mm-convert:latest")
 DOCKER_USER = os.environ.get("MM_DOCKER_USER", "")
 

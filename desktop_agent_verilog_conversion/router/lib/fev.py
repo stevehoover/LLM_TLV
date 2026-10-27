@@ -15,6 +15,7 @@ def run_in_module(cmd, timeout=3600):
     argv += ["-v", config.SERV_DIR + ":/workspace/proj:rw",
         "-v", config.LLMTLV_DIR + ":/home/steve/repos/LLM_TLV:ro",
         "-v", config.TOOLSHIM_DIR + ":/toolshim:ro",
+        "-e", "MM_FEV_TIMEOUT=%d" % config.FEV_TIMEOUT,
         "-w", "/workspace/proj/tlv/" + os.path.basename(config.MDIR),
         "--entrypoint", "bash", config.DOCKER_IMAGE, "-lc",
         "export PATH=/toolshim:/opt/oss-cad-suite/bin:$PATH; " + cmd]
@@ -23,7 +24,7 @@ def run_in_module(cmd, timeout=3600):
 
 
 def run_fev():
-    out = run_in_module("./scripts/fev.sh 2>&1")
+    out = run_in_module("./scripts/fev.sh 2>&1", timeout=8 * config.FEV_TIMEOUT)
     return "All FEV runs successful" in out, out
 
 

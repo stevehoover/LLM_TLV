@@ -1,9 +1,11 @@
 #!/bin/bash
 # Shim: fev.sh hardcodes `timeout 120s` calibrated for a faster machine.
-# Scale that budget to 600s here; pass everything else through.
+# Replace that budget with MM_FEV_TIMEOUT seconds (default 3600, set by the
+# router); pass everything else through.
+budget="${MM_FEV_TIMEOUT:-3600}s"
 args=()
 for a in "$@"; do
-  [[ "$a" == "120s" ]] && a="600s"
+  [[ "$a" == "120s" ]] && a="$budget"
   args+=("$a")
 done
 exec /usr/bin/timeout "${args[@]}"

@@ -144,12 +144,14 @@ function run_tool() {
   local fail_status="$3"
   local fail_msg="$4"
   local cmd="timeout 120s $tool_cmd > ${TEMP_DIR}/${job}.log 2>&1"
+  TOOL_TIMED_OUT=0
   echo "Running: $cmd"
   eval "$cmd"
   exit_code=$?
   if [[ $exit_code -ne 0 ]]; then
     if [[ $exit_code -eq 124 ]]; then
-      $fail_msg="Timeout running: $tool_cmd"
+      fail_msg="Timeout running: $tool_cmd"
+      TOOL_TIMED_OUT=1
     fi
     # Output the log for diagnosis.
     #cat "${TEMP_DIR}/${job}.log"
@@ -302,7 +304,13 @@ function run_fev() {
   run_tool "$job" "$cmd" "$fail_status" "$fail_msg"
   status=$?
   if [[ $status -ne 0 ]]; then
-    if [[ -d ${fev_out_dir} && -d ${fev_out_dir}/strategies ]]; then
+    if [[ $TOOL_TIMED_OUT -eq 1 ]]; then
+      echo
+      echo "EQY timed out before all partitions finished, so the partition status is incomplete."
+      echo "That is not a proof failure; rerun with a longer timeout (MM_FEV_TIMEOUT for the router)."
+      echo "EQY log can be found in: ${TEMP_DIR}/${job}.log"
+      echo
+    elif [[ -d ${fev_out_dir} && -d ${fev_out_dir}/strategies ]]; then
       # TODO: Also report Warnings from the log about bad match lines.
       # Report internal signals for diagnosis.
       echo

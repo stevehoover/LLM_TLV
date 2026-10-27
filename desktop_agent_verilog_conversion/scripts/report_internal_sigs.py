@@ -76,6 +76,7 @@ def main():
         sys.exit(1)
 
     failed_partitions = []
+    unfinished = 0
     
     # Scan all partitions in strategies/sby_seq/status for non-PASS status
     for partition_dir in strategies_dir.iterdir():
@@ -90,9 +91,14 @@ def main():
                         failed_partitions.append((signal_name, status))
                 except Exception as e:
                     print(f"Error reading {status_file}: {e}", file=sys.stderr)
+            else:
+                unfinished += 1
 
     if not failed_partitions:
-        print("All partitions passed!")
+        if unfinished:
+            print(f"No failing partitions, but {unfinished} partitions have no status yet (EQY stopped early, e.g. on a timeout).")
+        else:
+            print("All partitions passed!")
         return
 
     print(f"Found {len(failed_partitions)} non-passing partitions:")
