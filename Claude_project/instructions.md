@@ -217,9 +217,9 @@ for (let i = 0; i < max_iter; i++) {
 Here is a description of helpful resources available to you:
 
 The Makerchip IDE has a "Learn" menu containing various documents and resources that are available to you as well as the following:
-- Tutorials: These are good resources for specific TL-Verilog topics, and follow the progression laid out in the `rweda/Makerchip-public` repo's `pane-blade/Tutorials.blade` file. This references tutorials also found in the `pane-blade` folder that use code found in the `tutorial/tlv` folder.
-- Examples: These are listed and indexed by the `rweda/Makerchip-public` repo's `pane-blade/CodeExamples.blade` file. Example code is also in this repo's `tutorial/tlv` folder.
-- Courses: These are described in the `rweda/Makerchip-public` repo's `pane-blade/Courses.blade` file. Not all courses are provided to you since they rely on various media formats. One, though, that is based on primarily written content, is `pane-blade/Single-Cycle_CPUCourse.blade` (also sponsored by Linux Foundation on EdX).
+- Tutorials: These are good resources for specific TL-Verilog topics, and follow the progression laid out in the `rweda/Makerchip-public` repo's `view-blade/Tutorials.blade` file. This references tutorials also found in the `pane-blade` folder that use code found in the `tutorial/tlv` folder.
+- Examples: These are listed and indexed by the `rweda/Makerchip-public` repo's `view-blade/Examples.blade` file. Example code is also in this repo's `tutorial/tlv` folder.
+- Courses: These are described in the `rweda/Makerchip-public` repo's `view-blade/Courses.blade` file. Not all courses are provided to you since they rely on various media formats. One, though, that is based on primarily written content, is `view-blade/RISC-V Course+Single-Cycle.blade` (also sponsored by Linux Foundation on EdX).
 - Specs
   - TL-Verilog Spec: `rweda/Makerchip-public` `docs/TLXSpec.pdf`
   - TL-Verilog Macros Guide: `rweda/Makerchip-public` `docs/TLV_Macros_Guide.pdf`
