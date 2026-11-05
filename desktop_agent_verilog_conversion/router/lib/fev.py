@@ -7,6 +7,19 @@ import subprocess
 
 from . import config
 
+CURRENT_TASK = None
+
+
+# Record the task now being attempted, so run_validator can find its validator.
+def set_task(tname):
+    # Args:
+    #    tname: The task name as it appears in order.json
+    #
+    # Returns:
+    #    None
+    global CURRENT_TASK
+    CURRENT_TASK = tname
+
 
 def run_in_module(cmd, timeout=3600):
     argv = ["docker", "run", "--rm"]
@@ -22,7 +35,39 @@ def run_in_module(cmd, timeout=3600):
     return r.stdout + r.stderr
 
 
+# Run the current task's pre-FEV validator, if it has one, in the module directory.
+def run_validator():
+    # Args:
+    #    None; the task comes from set_task
+    #
+    # Returns:
+    #    (ok, output), where ok is True when there is no validator for the
+    #    task or the validator exited 0, and output is the validator's
+    #    combined stdout and stderr
+    if not CURRENT_TASK:
+        return True, ""
+    vpath = os.path.join(config.ROUTER_DIR, "validators",
+                         re.sub(r"[^A-Za-z0-9]+", "_", CURRENT_TASK) + ".sh")
+    if not os.path.isfile(vpath):
+        return True, ""
+    rel = os.path.relpath(vpath, config.LLMTLV_DIR)
+    out = run_in_module("bash /home/steve/repos/LLM_TLV/" + rel
+                        + " . 2>&1; echo VALIDATOR_EXIT=$?", timeout=600)
+    return "VALIDATOR_EXIT=0" in out, out
+
+
+# Run the task's validator and then fev.sh, skipping FEV if the validator fails.
 def run_fev():
+    # Args:
+    #    None
+    #
+    # Returns:
+    #    (passed, output), where output is the validator's report when the
+    #    validator failed and fev.sh's output otherwise
+    vok, vout = run_validator()
+    if not vok:
+        return False, ("The pre-FEV validator for this task failed, so FEV was not run. "
+                       "Fix the problems it reports first:\n\n" + vout)
     out = run_in_module("./scripts/fev.sh 2>&1")
     return "All FEV runs successful" in out, out
 

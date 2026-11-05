@@ -9,7 +9,7 @@ from . import accounting, config, edits, plan_context, state
 from .accounting import cache_str, print_summary, track
 from .config import ACCEPT_GLOB, JUDGE_ON, MODEL_NAME, PROVIDERS
 from .edits import apply_files, extract_justification, is_no_change, restore
-from .fev import enrich_feedback, run_fev, run_in_module
+from .fev import enrich_feedback, run_fev, run_in_module, set_task
 from .judge import accept_count, acceptance_ok, distinct_ok, judge, write_judge_record
 from .prompts import build_user
 from .providers import call_with_retry, run_agent_worker, truncated, truncation_feedback
@@ -56,6 +56,7 @@ def main():
         print(f"\n##### TASK: {tname} [{time.strftime('%H:%M:%S')}]"
               + (" (" + ", ".join(marks) + ")" if marks else ""))
         set_status_fields(task=tname)
+        set_task(tname)
         done = False
         used = None
         feedback = None
