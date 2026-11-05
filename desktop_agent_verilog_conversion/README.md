@@ -52,6 +52,10 @@ The agent should produce:
 - `tlv/project_instructions/project_specific_instructions.md`: project-specific instructions for conversion agents
 - `tlv/regress/regress.sh` (or similar): a script for conversion agents to run to regress changes using the project's environment, referenced by `project_specific_instructions.md`.
 
+## FEV Configuration Coverage
+
+`scripts/config_coverage.py .` reads the parameters declared in `orig.sv` and the `chparam -set` lines of every `fev_full*.eqy`, and reports per parameter whether any FEV configuration changes it from its default (a parameter derived from another, such as `B = W-1`, is reported as derived). It exits 1 when at least one parameter is never varied. `scripts/fev.sh` runs it with `--warn-only` before SandPiper and prints its warnings without failing, since some parameters are legitimately fixed for a conversion.
+
 ## Docker Environment
 
 `tlv/env/Dockerfile` defines an image with all TL-Verilog conversion tools pre-installed. The setup agent may customize this by creating project-specific extensions via `tlv/env/Dockerfile.project` and `tlv/env/docker-compose.yml`.
