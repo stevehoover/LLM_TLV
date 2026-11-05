@@ -1,11 +1,12 @@
 """Formal equivalence checking: docker invocation of the shared fev.sh
-harness, plus feedback enrichment from SandPiper-generated Verilog."""
+harness, plus feedback enrichment from SandPiper-generated Verilog and its
+source correlation back to the TLV."""
 
 import os
 import re
 import subprocess
 
-from . import config
+from . import config, srcmap
 
 
 def run_in_module(cmd, timeout=3600):
@@ -27,15 +28,20 @@ def run_fev():
     return "All FEV runs successful" in out, out
 
 
+# Every generated-file line reference in the tool output gets its TLV origin
+# appended and the TLV source quoted (srcmap); the first ERROR against a
+# generated file additionally gets a Verilog excerpt so the worker sees both
+# the line it wrote and what SandPiper made of it.
 def enrich_feedback(out):
-    m = re.search(r"wip\.sv:(\d+): ERROR", out)
-    p = os.path.join(config.MDIR, "wip.sv")
+    out = srcmap.annotate(out, config.MDIR)
+    m = re.search(r"((?:wip|feved)[\w.-]*\.sv):(\d+): ERROR", out)
+    p = os.path.join(config.MDIR, m.group(1)) if m else ""
     if m and os.path.exists(p):
-        ln = int(m.group(1))
+        ln = int(m.group(2))
         lines = open(p).read().splitlines()
         lo, hi = max(0, ln - 8), min(len(lines), ln + 8)
         excerpt = "\n".join(f"{i+1}: {lines[i]}" for i in range(lo, hi))
-        out += ("\n\n# The Verilog that SandPiper GENERATED from your wip.tlv, around the error line:\n"
+        out += (f"\n\n# The Verilog that SandPiper GENERATED from your TLV ({m.group(1)}), around the error line:\n"
                 + excerpt +
                 "\n\nCompare this generated Verilog against your TLV source to see how your TLV was interpreted.")
     return out
