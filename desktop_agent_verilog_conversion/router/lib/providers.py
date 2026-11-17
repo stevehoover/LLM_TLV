@@ -36,7 +36,7 @@ def call(provider, user, system=None):
         req = urllib.request.Request("https://api.deepseek.com/chat/completions",
             data=json.dumps({"model": config.MODEL_NAME["deepseek"],
                 "messages": [{"role": "system", "content": system}, {"role": "user", "content": common + stable + fb}],
-                "max_tokens": 16000, "temperature": 0.2}).encode(),
+                "max_tokens": config.DEEPSEEK_MAX_TOKENS, "temperature": 0.2}).encode(),
             headers={"Content-Type": "application/json",
                      "Authorization": "Bearer " + key})
         d = json.load(urllib.request.urlopen(req, timeout=300))

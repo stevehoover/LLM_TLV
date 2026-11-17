@@ -35,6 +35,7 @@ MAX_COST = {
     "deepseek": float(os.environ.get("MM_MAX_COST_DEEPSEEK", "2.0")),
     "claude": float(os.environ.get("MM_MAX_COST_CLAUDE", "5.0")),
 }
+DEEPSEEK_MAX_TOKENS = int(os.environ.get("MM_DEEPSEEK_MAX_TOKENS", "16000"))
 MODEL_NAME = {"deepseek": "deepseek-v4-flash", "claude": "claude-sonnet-4-6",
               "agent": "claude-code-agent"}
 
