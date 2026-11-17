@@ -58,7 +58,8 @@ Genuinely shared:
 
 Router-specific: the routing loop (`router.py` + `lib/`), per-task judge
 criteria (`checks/`), a reference hint set (`hints_examples/`), a `timeout`
-shim (`toolshim/`) that widens fev.sh's SandPiper timeout for slower
+shim (`toolshim/`) that replaces fev.sh's 120 s per-tool timeout
+(SandPiper, EQY) with MM_FEV_TIMEOUT for slower
 machines, and the task definitions themselves (`tasks/`): these are copies
 of the tasks in `../instructions/conversion_tasks.md`, one file per task,
 not references, so an edit there must be mirrored here.
@@ -194,6 +195,7 @@ The implementation lives in `lib/`, one concern per module:
 | MM_SERV_DIR | ./serv | docker mount for the Verilog project checkout |
 | MM_LLMTLV_DIR | this repo | docker mount for the LLM_TLV checkout (fev.sh harness) |
 | MM_TOOLSHIM_DIR | router/toolshim | docker mount for the timeout shim |
+| MM_FEV_TIMEOUT | 3600 | seconds per fev.sh tool run (SandPiper, each EQY run), replacing fev.sh's 120 s; the whole fev.sh call is capped at 8x this. Large configs need it: serv_rf full FEV at WIDTH_2 takes 27 to 31 min |
 | MM_DOCKER_IMAGE / MM_DOCKER_USER | mm-convert:latest / (none) | toolchain container |
 | MM_DEEPSEEK_KEY_FILE / MM_ANTHROPIC_KEY_FILE | ~/.secrets/... | API key file paths |
 | MM_AGENT_CMD / MM_AGENT_MODEL | claude / sonnet | agent worker CLI and model |
