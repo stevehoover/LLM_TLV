@@ -1,5 +1,17 @@
 """The task loop: one task at a time, cheap provider first with escalation,
-fev.sh as the only gate, judge and acceptance checks after every pass."""
+fev.sh as the only gate, judge and acceptance checks after every pass.
+
+Why this module exists: the desktop-agent flow hands the whole task list to
+one long agent session, which decides for itself when a task is done and
+spends tokens re-reading the growing conversation. The router replaces that
+session with this loop, so the harness, not the model, decides progress.
+Each task is a fresh stateless attempt, a task advances only when fev.sh
+passes and the judge agrees the refactoring goal was met, failures come back
+as concrete feedback on the next attempt, and spend goes to the cheap
+provider first and to the stronger one only after it fails. Everything else
+in lib/ (prompts, providers, edits, fev, judge, state) is a piece this loop
+calls; router.py only parses arguments, runs preflight and calls main().
+"""
 
 import os
 import re

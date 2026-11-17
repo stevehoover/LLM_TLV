@@ -141,14 +141,14 @@ MM_PROVIDERS="deepseek:2,claude:6" \
 python3 desktop_agent_verilog_conversion/router/router.py /path/to/serv/tlv/<module_dir>
 ```
 
-Tests, all dependency-free:
+Tests live in `tests/`, all dependency-free, runnable from any directory:
 
 ```
-python3 tests.py          # parser cases for the edit format
-python3 smoke_test.py     # imports every module, exercises preflight
-python3 loop_test.py      # judge context and retry loop against fake providers
-python3 plan_test.py      # the combining-plan pre-step on a fake design
-python3 plan_wire_test.py # the combining tasks consuming that plan
+python3 tests/tests.py          # parser cases for the edit format
+python3 tests/smoke_test.py     # imports every module, exercises preflight
+python3 tests/loop_test.py      # judge context and retry loop against fake providers
+python3 tests/plan_test.py      # the combining-plan pre-step on a fake design
+python3 tests/plan_wire_test.py # the combining tasks consuming that plan
 ```
 
 The router resumes: completed tasks and the in-flight attempt budget live in
@@ -248,7 +248,7 @@ prompt under its own heading, the way a hint file is appended. The worker is
 told the decision rather than asked to make one, and the run log marks the
 task `(with plan)`. With no plan file the prompt is unchanged.
 
-Tests: `python3 plan_test.py`, `python3 plan_wire_test.py` (self-contained,
+Tests: `python3 tests/plan_test.py`, `python3 tests/plan_wire_test.py` (self-contained,
 no network).
 
 ## Hints: the ratchet
